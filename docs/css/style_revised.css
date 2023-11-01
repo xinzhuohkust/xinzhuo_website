@@ -1,0 +1,12 @@
+
+.hover-effect {
+  text-decoration: none;
+  color: blue;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.hover-effect:hover {
+  color: red;
+  font-size: 1.2rem; /* 放大字体大小 */
+}

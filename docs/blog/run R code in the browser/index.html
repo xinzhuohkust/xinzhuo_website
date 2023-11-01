@@ -2,9 +2,8 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.4.169">
+<meta name="generator" content="quarto-1.4.463">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<meta name="author" content="Xinzhuo Huang">
 <meta name="dcterms.date" content="2023-06-10">
 <meta name="description" content="without the need for an R server to execute the code">
 <title>Xinzhuo Huang - Run R code In the Browser</title>
@@ -22,7 +21,7 @@ ul.task-list li input[type="checkbox"] {
 }
 /* CSS for syntax highlighting */
 pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span { line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
 .sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
@@ -63,7 +62,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../../">
-<link href="../../favicon.png" rel="icon" type="image/png">
+<link href="../../icon.png" rel="icon" type="image/png">
 <script src="../../site_libs/cookie-consent/cookie-consent.js"></script>
 <link href="../../site_libs/cookie-consent/cookie-consent.css" rel="stylesheet">
 <script src="../../site_libs/quarto-html/quarto.js"></script>
@@ -82,10 +81,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   "collapse-after": 3,
   "panel-placement": "end",
   "type": "overlay",
-  "limit": 20,
+  "limit": 50,
   "keyboard-shortcut": [
-    null
+    "f",
+    "/",
+    "s"
   ],
+  "show-item-context": false,
   "language": {
     "search-no-results-text": "No results",
     "search-matching-documents-text": "matching documents",
@@ -128,27 +130,66 @@ cookieconsent.run({
   window.document.addEventListener("DOMContentLoaded", function (_event) {
     document.body.classList.add('hypothesis-enabled');
   });
-</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.31.0/min/vs/editor/editor.main.css">
+</script><link href="../../site_libs/pagedtable-1.1/css/pagedtable.css" rel="stylesheet">
+<script src="../../site_libs/pagedtable-1.1/js/pagedtable.js"></script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs/editor/editor.main.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" integrity="sha512-z3gLpd7yknf1YoNbCzqRKc4qyor8gaKU1qmn+CShxbuBusANI9QpRohGBreCFkKxLhei6S9CQXFEbbKuqLg0DA==" crossorigin="anonymous" referrerpolicy="no-referrer">
 <style>
   .monaco-editor pre {
     background-color: unset !important;
   }
 
-  .btn-webr {
+  .qwebr-icon-status-spinner {
+    color: #7894c4;
+  }
+
+  .qwebr-icon-run-code {
+    color: #0d9c29
+  }
+
+  .qwebr-output-code-stdout {
+    color: #111;
+  }
+
+  .qwebr-output-code-stderr {
+    color: #db4133;
+  }
+
+  .qwebr-button-run {
     background-color: #EEEEEE;
     border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
+    border-bottom-right-radius: 0; /* Extra styling for consistency */
+    display: inline-block;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #000;
+    text-align: center;
+    text-decoration: none;
+    -webkit-text-decoration: none;
+    -moz-text-decoration: none;
+    -ms-text-decoration: none;
+    -o-text-decoration: none;
+    vertical-align: middle;
+    -webkit-user-select: none;
+    border-color: #dee2e6;
+    border: 1px solid rgba(0,0,0,0);
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    border-radius: 0.25rem;
+    transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+  }
+
+  .qwebr-button-run:hover {
+    color: #000;
+    background-color: #e3e6ea;
+    border-color: #e1e5e9;
+  }
+
+  .qwebr-button-run:disabled,.qwebr-button-run.disabled,fieldset:disabled .qwebr-button-run {
+    pointer-events: none;
+    opacity: .65
   }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.31.0/min/vs/loader.js"></script><script type="module">
-
-  // Configure the Monaco Editor's loader
-  require.config({
-    paths: {
-      'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.31.0/min/vs'
-    }
-  });
-
+<script type="module">
 
   // Start a timer
   const initializeWebRTimerStart = performance.now();
@@ -157,27 +198,31 @@ cookieconsent.run({
   var installRPackagesList = [''];
   // Check to see if we have an empty array, if we do set to skip the installation.
   var setupRPackages = !(installRPackagesList.indexOf("") !== -1);
+  var autoloadRPackages = true;
 
   // Display a startup message?
   var showStartupMessage = true;
   var showHeaderMessage = false;
   if (showStartupMessage) {
 
-    // Create the outermost div element
-    var quartoTitleMeta = document.createElement("div");
+    // Get references to header elements
+    const headerHTML = document.getElementById("title-block-header");
+    const headerRevealJS = document.getElementById("title-slide");
+
+    // Create the outermost div element for metadata
+    const quartoTitleMeta = document.createElement("div");
     quartoTitleMeta.classList.add("quarto-title-meta");
 
     // Create the first inner div element
-    var firstInnerDiv = document.createElement("div");
+    const firstInnerDiv = document.createElement("div");
 
-    // Create the second inner div element with "WebR Status" heading 
-    // and contents
-    var secondInnerDiv = document.createElement("div");
+    // Create the second inner div element for "WebR Status" heading and contents
+    const secondInnerDiv = document.createElement("div");
     secondInnerDiv.classList.add("quarto-title-meta-heading");
     secondInnerDiv.innerText = "WebR Status";
 
-    // Add another inner div
-    var secondInnerDivContents = document.createElement("div");
+    // Create another inner div for contents
+    const secondInnerDivContents = document.createElement("div");
     secondInnerDivContents.classList.add("quarto-title-meta-contents");
 
     // Describe the WebR state
@@ -187,35 +232,49 @@ cookieconsent.run({
     // Add `aria-live` to auto-announce the startup status to screen readers
     startupMessageWebR.setAttribute("aria-live", "assertive");
 
-    // Put everything together
+    // Append the startup message to the contents
     secondInnerDivContents.appendChild(startupMessageWebR);
 
-    // Add a status indicator for COOP and COEP Headers
+    // Add a status indicator for COOP and COEP Headers if needed
     if (showHeaderMessage) {
-      var crossOriginMessage = document.createElement("p");
+      const crossOriginMessage = document.createElement("p");
       crossOriginMessage.innerText = `${crossOriginIsolated ? '🟢' : '🟡'} COOP & COEP Headers`;
       crossOriginMessage.setAttribute("id", "coop-coep-header");
       secondInnerDivContents.appendChild(crossOriginMessage);
     }
 
+    // Combine the inner divs and contents
     firstInnerDiv.appendChild(secondInnerDiv);
     firstInnerDiv.appendChild(secondInnerDivContents);
     quartoTitleMeta.appendChild(firstInnerDiv);
 
-    // Add new element as last child in header element
-    var header = document.getElementsByTagName("header")[0];
-    header.appendChild(quartoTitleMeta);
+    // Determine where to insert the quartoTitleMeta element
+    if (headerHTML) {
+      // Append to the existing "title-block-header" element
+      headerHTML.appendChild(quartoTitleMeta);
+    } else if (headerRevealJS) {
+      // If using RevealJS, add to the "title-slide" div
+      headerRevealJS.appendChild(firstInnerDiv);
+    } else {
+      // If neither headerHTML nor headerRevealJS is found, insert after "webr-monaco-editor-init" script
+      const monacoScript = document.getElementById("webr-monaco-editor-init");
+      const header = document.createElement("header");
+      header.setAttribute("id", "title-block-header");
+      header.appendChild(quartoTitleMeta);
+      monacoScript.after(header);
+    }
   }
 
   // Retrieve the webr.mjs
-  import { WebR } from "https://webr.r-wasm.org/v0.2.0/webr.mjs";
+  import { WebR, ChannelType } from "https://webr.r-wasm.org/v0.2.1/webr.mjs";
 
   // Populate WebR options with defaults or new values based on 
   // webr meta
   globalThis.webR = new WebR({
-    "baseURL": "",
+    "baseURL": "https://webr.r-wasm.org/v0.2.1/",
     "serviceWorkerUrl": "",
-    "homedir": "/dir/"
+    "homedir": "/dir/", 
+    "channelType": ChannelType.Automatic
   });
 
   // Initialization WebR
@@ -224,27 +283,94 @@ cookieconsent.run({
   // Setup a shelter
   globalThis.webRCodeShelter = await new globalThis.webR.Shelter();
 
-  // Installing Packages
-  if (showStartupMessage && setupRPackages) {
-    // If initialized, but we have packages to install switch status
-    startupMessageWebR.innerText = "🟡 Installing package dependencies..."
-    // Install packages
-    await globalThis.webR.installPackages(installRPackagesList)
+  // Setup a pager to allow processing help documentation 
+  await globalThis.webR.evalRVoid('webr::pager_install()'); 
+
+  // Function to set the button text
+  function qwebrSetInteractiveButtonState(buttonText, enableCodeButton = true) {
+    document.querySelectorAll(".qwebr-button-run").forEach((btn) => {
+      btn.innerHTML = buttonText;
+      btn.disabled = !enableCodeButton;
+    });
   }
 
-  // Switch to allowing code to be executed
-  document.querySelectorAll(".btn-webr").forEach((btn) => {
-    btn.innerText = "Run code";
-    btn.disabled = false;
-  });
+  // Function to update the status message
+  function qwebrUpdateStatusHeader(message) {
+    startupMessageWebR.innerHTML = `
+      <i class="fa-solid fa-spinner fa-spin qwebr-icon-status-spinner"></i>
+      <span>${message}</span>`;
+  }
+
+  // Function to install a single package
+  async function qwebrInstallRPackage(packageName) {
+    await globalThis.webR.installPackages([packageName]);
+  }
+
+  // Function to load a single package
+  async function qwebrLoadRPackage(packageName) {
+    await globalThis.webR.evalRVoid(`library(${packageName});`);
+  }
+
+  // Generic function to process R packages
+  async function qwebrProcessRPackagesWithStatus(packages, processType, displayStatusMessageUpdate = true) {
+    // Switch between contexts
+    const messagePrefix = processType === 'install' ? 'Installing' : 'Loading';
+
+    // Modify button state
+    qwebrSetInteractiveButtonState(`🟡 ${messagePrefix} package ...`, false);
+
+    // Iterate over packages
+    for (let i = 0; i < packages.length; i++) {
+      const activePackage = packages[i];
+      const formattedMessage = `${messagePrefix} package ${i + 1} out of ${packages.length}: ${activePackage}`;
+      
+      // Display the update
+      if (displayStatusMessageUpdate) {
+        qwebrUpdateStatusHeader(formattedMessage);
+      }
+
+      // Run package installation
+      if (processType === 'install') {
+        await qwebrInstallRPackage(activePackage);
+      } else {
+        await qwebrLoadRPackage(activePackage);
+      }
+    }
+
+    // Clean slate
+    if (processType === 'load') {
+      await globalThis.webR.flush();
+    }
+  }
+
+
+  // Check to see if any packages need to be installed
+  if (setupRPackages) {
+    // Obtain only a unique list of packages
+    const uniqueRPackageList = Array.from(new Set(installRPackagesList));
+
+    // Install R packages one at a time (either silently or with a status update)
+    await qwebrProcessRPackagesWithStatus(uniqueRPackageList, 'install', showStartupMessage);
+
+    if(autoloadRPackages) {
+      // Load R packages one at a time (either silently or with a status update)
+      await qwebrProcessRPackagesWithStatus(uniqueRPackageList, 'load', showStartupMessage);
+    }
+  }
 
   // Stop timer
   const initializeWebRTimerEnd = performance.now();
 
+  // Release document status as ready
   if (showStartupMessage) {
-    // If initialized, switch to a green light
     startupMessageWebR.innerText = "🟢 Ready!"
   }
+  
+  qwebrSetInteractiveButtonState(
+    `<i class="fa-solid fa-play qwebr-icon-run-code"></i> <span>Run Code</span>`, 
+    true
+  );
+
 </script><link rel="stylesheet" href="../../scss/styles.css">
 <meta property="og:title" content="Xinzhuo Huang - Run R code In the Browser">
 <meta property="og:description" content="without the need for an R server to execute the code">
@@ -256,10 +382,10 @@ cookieconsent.run({
 <body class="nav-fixed">
 
 <div id="quarto-search-results"></div>
-  <header id="quarto-header" class="headroom fixed-top"><nav class="navbar navbar-expand-lg navbar-dark "><div class="navbar-container container-fluid">
+  <header id="quarto-header" class="headroom fixed-top"><nav class="navbar navbar-expand-lg " data-bs-theme="dark"><div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
     <a href="../../index.html" class="navbar-brand navbar-brand-logo">
-    <img src="../../icon_sun.png" alt="" class="navbar-logo"></a>
+    <img src="../../icon.png" alt="" class="navbar-logo"></a>
   </div>
             <div id="quarto-search" class="" title="Search"></div>
           <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
@@ -268,39 +394,39 @@ cookieconsent.run({
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll ms-auto">
 <li class="nav-item">
-    <a class="nav-link" href="../../cv/" rel="" target="">
- <span class="menu-text">CV</span></a>
+    <a class="nav-link" href="../../cv/"> 
+<span class="menu-text">CV</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../../blog/index.html" rel="" target="">
- <span class="menu-text">BLOG</span></a>
+    <a class="nav-link" href="../../blog/index.html"> 
+<span class="menu-text">BLOG</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../../data/index.html" rel="" target="">
- <span class="menu-text">DATA</span></a>
+    <a class="nav-link" href="../../data/index.html"> 
+<span class="menu-text">DATA</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="../../project/index.html" rel="" target="">
- <span class="menu-text">PROJECT</span></a>
+    <a class="nav-link" href="../../project/index.html"> 
+<span class="menu-text">PROJECT</span></a>
   </li>  
   <li class="nav-item compact">
-    <a class="nav-link" href="../../blog/index.xml" rel="" target=""><i class="bi bi-rss" role="img">
+    <a class="nav-link" href="../../blog/index.xml"> <i class="bi bi-rss" role="img">
 </i> 
- <span class="menu-text"></span></a>
+<span class="menu-text"></span></a>
   </li>  
   <li class="nav-item dropdown ">
-    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-bi-github" role="button" data-bs-toggle="dropdown" aria-expanded="false" rel="" target="">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-bi-github" role="button" data-bs-toggle="dropdown" aria-expanded="false">
       <i class="bi bi-github" role="img">
 </i> 
  <span class="menu-text"></span>
     </a>
     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="nav-menu-bi-github">
 <li>
-    <a class="dropdown-item" href="https://github.com/xinzhuohkust/xinzhuo" rel="" target="">
+    <a class="dropdown-item" href="https://github.com/xinzhuohkust/xinzhuo">
  <span class="dropdown-text">Source Code</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="https://github.com/xinzhuohkust/xinzhuo/issues" rel="" target="">
+    <a class="dropdown-item" href="https://github.com/xinzhuohkust/xinzhuo/issues">
  <span class="dropdown-text">Report a Bug</span></a>
   </li>  
     </ul>
@@ -315,7 +441,7 @@ cookieconsent.run({
 <!-- sidebar -->
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        <nav id="TOC" role="doc-toc" class="toc-active"><h2 id="toc-title">Contents</h2>
+        <nav id="TOC" role="doc-toc" class="toc-active"><h2 id="toc-title">On this page</h2>
    
   <ul>
 <li><a href="#sample" id="toc-sample" class="nav-link active" data-scroll-target="#sample">Sample</a></li>
@@ -323,7 +449,15 @@ cookieconsent.run({
   </ul></nav>
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block default"><div class="quarto-title">
+<main class="content" id="quarto-document-content"><script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs/loader.js"></script><script type="module" id="webr-monaco-editor-init">
+
+  // Configure the Monaco Editor's loader
+  require.config({
+    paths: {
+      'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs'
+    }
+  });
+</script><header id="title-block-header" class="quarto-title-block default"><div class="quarto-title">
 <h1 class="title">Run R code In the Browser</h1>
   <div class="quarto-categories">
     <div class="quarto-category">webr</div>
@@ -336,23 +470,10 @@ cookieconsent.run({
   </div>
 </div>
 
-<div class="quarto-title-meta-author">
-  <div class="quarto-title-meta-heading">Author</div>
-  <div class="quarto-title-meta-heading">Affiliation</div>
-  
-    <div class="quarto-title-meta-contents">
-    <p class="author">Xinzhuo Huang <a href="https://orcid.org/0009-0007-6448-5114" class="quarto-title-author-orcid"> <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAA2ZpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMC1jMDYwIDYxLjEzNDc3NywgMjAxMC8wMi8xMi0xNzozMjowMCAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wTU09Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9tbS8iIHhtbG5zOnN0UmVmPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvc1R5cGUvUmVzb3VyY2VSZWYjIiB4bWxuczp4bXA9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC8iIHhtcE1NOk9yaWdpbmFsRG9jdW1lbnRJRD0ieG1wLmRpZDo1N0NEMjA4MDI1MjA2ODExOTk0QzkzNTEzRjZEQTg1NyIgeG1wTU06RG9jdW1lbnRJRD0ieG1wLmRpZDozM0NDOEJGNEZGNTcxMUUxODdBOEVCODg2RjdCQ0QwOSIgeG1wTU06SW5zdGFuY2VJRD0ieG1wLmlpZDozM0NDOEJGM0ZGNTcxMUUxODdBOEVCODg2RjdCQ0QwOSIgeG1wOkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ1M1IE1hY2ludG9zaCI+IDx4bXBNTTpEZXJpdmVkRnJvbSBzdFJlZjppbnN0YW5jZUlEPSJ4bXAuaWlkOkZDN0YxMTc0MDcyMDY4MTE5NUZFRDc5MUM2MUUwNEREIiBzdFJlZjpkb2N1bWVudElEPSJ4bXAuZGlkOjU3Q0QyMDgwMjUyMDY4MTE5OTRDOTM1MTNGNkRBODU3Ii8+IDwvcmRmOkRlc2NyaXB0aW9uPiA8L3JkZjpSREY+IDwveDp4bXBtZXRhPiA8P3hwYWNrZXQgZW5kPSJyIj8+84NovQAAAR1JREFUeNpiZEADy85ZJgCpeCB2QJM6AMQLo4yOL0AWZETSqACk1gOxAQN+cAGIA4EGPQBxmJA0nwdpjjQ8xqArmczw5tMHXAaALDgP1QMxAGqzAAPxQACqh4ER6uf5MBlkm0X4EGayMfMw/Pr7Bd2gRBZogMFBrv01hisv5jLsv9nLAPIOMnjy8RDDyYctyAbFM2EJbRQw+aAWw/LzVgx7b+cwCHKqMhjJFCBLOzAR6+lXX84xnHjYyqAo5IUizkRCwIENQQckGSDGY4TVgAPEaraQr2a4/24bSuoExcJCfAEJihXkWDj3ZAKy9EJGaEo8T0QSxkjSwORsCAuDQCD+QILmD1A9kECEZgxDaEZhICIzGcIyEyOl2RkgwAAhkmC+eAm0TAAAAABJRU5ErkJggg=="></a></p>
-  </div>
-    <div class="quarto-title-meta-contents">
-        <p class="affiliation">
-            HKUST SOSC
-          </p>
-      </div>
-    </div>
 
 <div class="quarto-title-meta">
 
-      
+    
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
@@ -364,9 +485,10 @@ cookieconsent.run({
   </div>
   
 
+
 </header><section id="sample" class="level1"><h1>Sample</h1>
 <div class="cell">
-<details><summary>Code</summary><div class="sourceCode" id="cb1"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org">ggplot2</a></span><span class="op">)</span></span>
+<details class="code-fold"><summary>Code</summary><div class="sourceCode" id="cb1"><pre class="downlit sourceCode r code-with-copy"><code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org">ggplot2</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">mtcars</span> <span class="op">|&gt;</span></span>
 <span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html">aes</a></span><span class="op">(</span><span class="va">hp</span>, <span class="va">mpg</span>, colour <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html">as.factor</a></span><span class="op">(</span><span class="va">am</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
@@ -390,17 +512,22 @@ cookieconsent.run({
 <p>Let’s replicate the figure by running the code online. You can try different parameters yourself.</p>
 <p><br></p>
 <p><strong>Base R</strong></p>
-<button class="btn btn-default btn-webr" disabled="" type="button" id="webr-run-button-1">Loading
+<button class="btn btn-default qwebr-button-run" disabled="" type="button" id="qwebr-button-run-1">🟡 Loading
   webR...</button>
-<div id="webr-editor-1"></div>
-<div id="webr-code-output-1" aria-live="assertive">
-  <pre style="visibility: hidden"></pre>
+<div id="qwebr-interactive-area-1" class="qwebr-interactive-area">
+  <div id="qwebr-editor-1" class="qwebr-editor"></div>
+  <div id="qwebr-output-code-area-1" class="qwebr-output-code-area" aria-live="assertive">
+    <pre style="visibility: hidden"></pre>
+  </div>
+</div>
+<div id="qwebr-output-graph-area-1" class="qwebr-output-graph-area">
 </div>
 <script type="module">
   // Retrieve webR code cell information
-  const runButton = document.getElementById("webr-run-button-1");
-  const outputDiv = document.getElementById("webr-code-output-1");
-  const editorDiv = document.getElementById("webr-editor-1");
+  const runButton = document.getElementById("qwebr-button-run-1");
+  const outputCodeDiv = document.getElementById("qwebr-output-code-area-1");
+  const editorDiv = document.getElementById("qwebr-editor-1");
+  const outputGraphDiv = document.getElementById("qwebr-output-graph-area-1");
 
   // Add a light grey outline around the code editor
   editorDiv.style.border = "1px solid #eee";
@@ -444,20 +571,6 @@ abline(
       hideCursorInOverviewRuler: true  // Remove cursor indictor in right hand side scroll bar
     });
 
-    // Add a keydown event listener for Shift+Enter using the addCommand method
-    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, function () {
-      // Code to run when Shift+Enter is pressed
-      executeCode(editor.getValue());
-    });
-
-    // Add a keydown event listener for Ctrl+Enter to run selected code
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, function () {
-      // Get the selected text from the editor
-      const selectedText = editor.getModel().getValueInRange(editor.getSelection());
-      // Code to run when Ctrl+Enter is pressed (run selected code)
-      executeCode(selectedText);
-    });
-
     // Dynamically modify the height of the editor window if new lines are added.
     let ignoreEvent = false;
     const updateHeight = () => {
@@ -475,6 +588,65 @@ abline(
       }
     };
 
+    // Helper function to check if selected text is empty
+    function isEmptyCodeText(selectedCodeText) {
+      return (selectedCodeText === null || selectedCodeText === undefined || selectedCodeText === "");
+    }
+
+    // Registry of keyboard shortcuts that should be re-added to each editor window
+    // when focus changes.
+    const addWebRKeyboardShortCutCommands = () => {
+      // Add a keydown event listener for Shift+Enter to run all code in cell
+      editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
+
+        // Retrieve all text inside the editor
+        executeCode(editor.getValue());
+      });
+
+      // Add a keydown event listener for CMD/Ctrl+Enter to run selected code
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+
+        // Get the selected text from the editor
+        const selectedText = editor.getModel().getValueInRange(editor.getSelection());
+        // Check if no code is selected
+        if (isEmptyCodeText(selectedText)) {
+          // Obtain the current cursor position
+          let currentPosition = editor.getPosition();
+          // Retrieve the current line content
+          let currentLine = editor.getModel().getLineContent(currentPosition.lineNumber);
+
+          // Propose a new position to move the cursor to
+          let newPosition = new monaco.Position(currentPosition.lineNumber + 1, 1);
+
+          // Check if the new position is beyond the last line of the editor
+          if (newPosition.lineNumber > editor.getModel().getLineCount()) {
+            // Add a new line at the end of the editor
+            editor.executeEdits("addNewLine", [{
+            range: new monaco.Range(newPosition.lineNumber, 1, newPosition.lineNumber, 1),
+            text: "\n", 
+            forceMoveMarkers: true,
+            }]);
+          }
+          
+          // Run the entire line of code.
+          executeCode(currentLine);
+
+          // Move cursor to new position
+          editor.setPosition(newPosition);
+        } else {
+          // Code to run when Ctrl+Enter is pressed with selected code
+          executeCode(selectedText);
+        }
+      });
+    }
+
+    // Register an on focus event handler for when a code cell is selected to update
+    // what keyboard shortcut commands should work.
+    // This is a workaround to fix a regression that happened with multiple
+    // editor windows since Monaco 0.32.0 
+    // https://github.com/microsoft/monaco-editor/issues/2947
+    editor.onDidFocusEditorText(addWebRKeyboardShortCutCommands);
+
     // Register an on change event for when new code is added to the editor window
     editor.onDidContentSizeChange(updateHeight);
 
@@ -484,14 +656,52 @@ abline(
 
   // Function to execute the code (accepts code as an argument)
   async function executeCode(codeToRun) {
-    // Disable run button for code cell active
-    runButton.disabled = true;
+
+    // Disallowing execution of other code cells
+    document.querySelectorAll(".qwebr-button-run").forEach((btn) => {
+      btn.disabled = true;
+    });
+
+    // Emphasize the active code cell
+    runButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin qwebr-icon-status-spinner"></i> <span>Run Code</span>';
 
     // Create a canvas variable for graphics
     let canvas = undefined;
 
+    // Create a pager variable for help/file contents
+    let pager = [];
+
+    // Process 
+    async function parseTypePager(msg) { 
+
+        // Split out the event data
+        const { path, title, deleteFile } = msg.data; 
+
+        // Process the pager data by reading the information from disk
+        const paged_data = await webR.FS.readFile(path).then((data) => {
+          // Obtain the file content
+          let content = new TextDecoder().decode(data);
+
+          // Remove excessive backspace characters until none remain
+          while(content.match(/.[\b]/)){
+            content = content.replace(/.[\b]/g, '');
+          }
+
+          // Returned cleaned data
+          return content;
+        });
+
+        // Unlink file if needed
+        if (deleteFile) { 
+          await webR.FS.unlink(path); 
+        } 
+
+        // Return extracted data with spaces
+        return paged_data;
+    } 
+
     // Initialize webR
-    await globalThis.webR.init();
+    await webR.init();
 
     // Setup a webR canvas by making a namespace call into the {webr} package
     await webR.evalRVoid("webr::canvas(width=504, height=360)");
@@ -511,15 +721,20 @@ abline(
       await webR.evalRVoid("dev.off()");
 
       // Merge output streams of STDOUT and STDErr (messages and errors are combined.)
-      const out = result.output.filter(
-        evt => evt.type == "stdout" || evt.type == "stderr"
-      ).map((evt) => evt.data).join("\n");
+      const out = result.output
+        .filter(evt => evt.type === "stdout" || evt.type === "stderr")
+        .map((evt, index) => {
+          const className = `qwebr-output-code-${evt.type}`;
+          return `<code id="${className}-editor-1-result-${index + 1}" class="${className}">${evt.data}</code>`;
+        })
+        .join("\n");
+
 
       // Clean the state
       const msgs = await webR.flush();
 
-      // Output each image stored
-      msgs.forEach(msg => {
+      // Output each image event stored
+      msgs.forEach((msg) => {
         // Determine if old canvas can be used or a new canvas is required.
         if (msg.type === 'canvas'){
           // Add image to the current canvas
@@ -534,36 +749,63 @@ abline(
             canvas.style.display = "block";
             canvas.style.margin = "auto";
           }
-        }
+        } 
       });
 
-      // Nullify the outputDiv of content
-      outputDiv.innerHTML = "";
+      // Use `map` to process the filtered "pager" events asynchronously
+      const pager = await Promise.all(
+        msgs.filter(msg => msg.type === 'pager').map(
+          async (msg) => {
+            return await parseTypePager(msg);
+          }
+        )
+      );
+
+      // Nullify the output area of content
+      outputCodeDiv.innerHTML = "";
+      outputGraphDiv.innerHTML = "";
 
       // Design an output object for messages
       const pre = document.createElement("pre");
       if (/\S/.test(out)) {
-        // Display results as text
-        const code = document.createElement("code");
-        code.innerText = out;
-        pre.appendChild(code);
+        // Display results as HTML elements to retain output styling
+        const div = document.createElement("div");
+        div.innerHTML = out;
+        pre.appendChild(div);
       } else {
         // If nothing is present, hide the element.
         pre.style.visibility = "hidden";
       }
-      outputDiv.appendChild(pre);
+      outputCodeDiv.appendChild(pre);
 
       // Place the graphics on the canvas
       if (canvas) {
-        const p = document.createElement("p");
-        p.appendChild(canvas);
-        outputDiv.appendChild(p);
+        outputGraphDiv.appendChild(canvas);
+      }
+
+      // Display the pager data
+      if (pager) {
+        // Use the `pre` element to preserve whitespace.
+        pager.forEach((paged_data, index) => {
+          let pre_pager = document.createElement("pre");
+          pre_pager.innerText = paged_data;
+          pre_pager.classList.add("qwebr-output-code-pager");
+          pre_pager.setAttribute("id", "qwebr-output-code-pager-editor-1-result-" + (index + 1));
+          outputCodeDiv.appendChild(pre_pager);
+        });
       }
     } finally {
       // Clean up the remaining code
       webRCodeShelter.purge();
-      runButton.disabled = false;
     }
+
+    // Switch to allowing execution of code
+    document.querySelectorAll(".qwebr-button-run").forEach((btn) => {
+      btn.disabled = false;
+    });
+
+    // Revert to the initial code cell state
+    runButton.innerHTML = '<i class="fa-solid fa-play qwebr-icon-run-code"></i> <span>Run Code</span>';
   }
 
   // Add a click event listener to the run button
@@ -572,17 +814,22 @@ abline(
   };
 </script><p><br></p>
 <p><strong>Tidy R</strong></p>
-<button class="btn btn-default btn-webr" disabled="" type="button" id="webr-run-button-2">Loading
+<button class="btn btn-default qwebr-button-run" disabled="" type="button" id="qwebr-button-run-2">🟡 Loading
   webR...</button>
-<div id="webr-editor-2"></div>
-<div id="webr-code-output-2" aria-live="assertive">
-  <pre style="visibility: hidden"></pre>
+<div id="qwebr-interactive-area-2" class="qwebr-interactive-area">
+  <div id="qwebr-editor-2" class="qwebr-editor"></div>
+  <div id="qwebr-output-code-area-2" class="qwebr-output-code-area" aria-live="assertive">
+    <pre style="visibility: hidden"></pre>
+  </div>
+</div>
+<div id="qwebr-output-graph-area-2" class="qwebr-output-graph-area">
 </div>
 <script type="module">
   // Retrieve webR code cell information
-  const runButton = document.getElementById("webr-run-button-2");
-  const outputDiv = document.getElementById("webr-code-output-2");
-  const editorDiv = document.getElementById("webr-editor-2");
+  const runButton = document.getElementById("qwebr-button-run-2");
+  const outputCodeDiv = document.getElementById("qwebr-output-code-area-2");
+  const editorDiv = document.getElementById("qwebr-editor-2");
+  const outputGraphDiv = document.getElementById("qwebr-output-graph-area-2");
 
   // Add a light grey outline around the code editor
   editorDiv.style.border = "1px solid #eee";
@@ -604,20 +851,6 @@ abline(
       hideCursorInOverviewRuler: true  // Remove cursor indictor in right hand side scroll bar
     });
 
-    // Add a keydown event listener for Shift+Enter using the addCommand method
-    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, function () {
-      // Code to run when Shift+Enter is pressed
-      executeCode(editor.getValue());
-    });
-
-    // Add a keydown event listener for Ctrl+Enter to run selected code
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, function () {
-      // Get the selected text from the editor
-      const selectedText = editor.getModel().getValueInRange(editor.getSelection());
-      // Code to run when Ctrl+Enter is pressed (run selected code)
-      executeCode(selectedText);
-    });
-
     // Dynamically modify the height of the editor window if new lines are added.
     let ignoreEvent = false;
     const updateHeight = () => {
@@ -635,6 +868,65 @@ abline(
       }
     };
 
+    // Helper function to check if selected text is empty
+    function isEmptyCodeText(selectedCodeText) {
+      return (selectedCodeText === null || selectedCodeText === undefined || selectedCodeText === "");
+    }
+
+    // Registry of keyboard shortcuts that should be re-added to each editor window
+    // when focus changes.
+    const addWebRKeyboardShortCutCommands = () => {
+      // Add a keydown event listener for Shift+Enter to run all code in cell
+      editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
+
+        // Retrieve all text inside the editor
+        executeCode(editor.getValue());
+      });
+
+      // Add a keydown event listener for CMD/Ctrl+Enter to run selected code
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+
+        // Get the selected text from the editor
+        const selectedText = editor.getModel().getValueInRange(editor.getSelection());
+        // Check if no code is selected
+        if (isEmptyCodeText(selectedText)) {
+          // Obtain the current cursor position
+          let currentPosition = editor.getPosition();
+          // Retrieve the current line content
+          let currentLine = editor.getModel().getLineContent(currentPosition.lineNumber);
+
+          // Propose a new position to move the cursor to
+          let newPosition = new monaco.Position(currentPosition.lineNumber + 1, 1);
+
+          // Check if the new position is beyond the last line of the editor
+          if (newPosition.lineNumber > editor.getModel().getLineCount()) {
+            // Add a new line at the end of the editor
+            editor.executeEdits("addNewLine", [{
+            range: new monaco.Range(newPosition.lineNumber, 1, newPosition.lineNumber, 1),
+            text: "\n", 
+            forceMoveMarkers: true,
+            }]);
+          }
+          
+          // Run the entire line of code.
+          executeCode(currentLine);
+
+          // Move cursor to new position
+          editor.setPosition(newPosition);
+        } else {
+          // Code to run when Ctrl+Enter is pressed with selected code
+          executeCode(selectedText);
+        }
+      });
+    }
+
+    // Register an on focus event handler for when a code cell is selected to update
+    // what keyboard shortcut commands should work.
+    // This is a workaround to fix a regression that happened with multiple
+    // editor windows since Monaco 0.32.0 
+    // https://github.com/microsoft/monaco-editor/issues/2947
+    editor.onDidFocusEditorText(addWebRKeyboardShortCutCommands);
+
     // Register an on change event for when new code is added to the editor window
     editor.onDidContentSizeChange(updateHeight);
 
@@ -644,14 +936,52 @@ abline(
 
   // Function to execute the code (accepts code as an argument)
   async function executeCode(codeToRun) {
-    // Disable run button for code cell active
-    runButton.disabled = true;
+
+    // Disallowing execution of other code cells
+    document.querySelectorAll(".qwebr-button-run").forEach((btn) => {
+      btn.disabled = true;
+    });
+
+    // Emphasize the active code cell
+    runButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin qwebr-icon-status-spinner"></i> <span>Run Code</span>';
 
     // Create a canvas variable for graphics
     let canvas = undefined;
 
+    // Create a pager variable for help/file contents
+    let pager = [];
+
+    // Process 
+    async function parseTypePager(msg) { 
+
+        // Split out the event data
+        const { path, title, deleteFile } = msg.data; 
+
+        // Process the pager data by reading the information from disk
+        const paged_data = await webR.FS.readFile(path).then((data) => {
+          // Obtain the file content
+          let content = new TextDecoder().decode(data);
+
+          // Remove excessive backspace characters until none remain
+          while(content.match(/.[\b]/)){
+            content = content.replace(/.[\b]/g, '');
+          }
+
+          // Returned cleaned data
+          return content;
+        });
+
+        // Unlink file if needed
+        if (deleteFile) { 
+          await webR.FS.unlink(path); 
+        } 
+
+        // Return extracted data with spaces
+        return paged_data;
+    } 
+
     // Initialize webR
-    await globalThis.webR.init();
+    await webR.init();
 
     // Setup a webR canvas by making a namespace call into the {webr} package
     await webR.evalRVoid("webr::canvas(width=504, height=360)");
@@ -671,15 +1001,20 @@ abline(
       await webR.evalRVoid("dev.off()");
 
       // Merge output streams of STDOUT and STDErr (messages and errors are combined.)
-      const out = result.output.filter(
-        evt => evt.type == "stdout" || evt.type == "stderr"
-      ).map((evt) => evt.data).join("\n");
+      const out = result.output
+        .filter(evt => evt.type === "stdout" || evt.type === "stderr")
+        .map((evt, index) => {
+          const className = `qwebr-output-code-${evt.type}`;
+          return `<code id="${className}-editor-2-result-${index + 1}" class="${className}">${evt.data}</code>`;
+        })
+        .join("\n");
+
 
       // Clean the state
       const msgs = await webR.flush();
 
-      // Output each image stored
-      msgs.forEach(msg => {
+      // Output each image event stored
+      msgs.forEach((msg) => {
         // Determine if old canvas can be used or a new canvas is required.
         if (msg.type === 'canvas'){
           // Add image to the current canvas
@@ -694,53 +1029,85 @@ abline(
             canvas.style.display = "block";
             canvas.style.margin = "auto";
           }
-        }
+        } 
       });
 
-      // Nullify the outputDiv of content
-      outputDiv.innerHTML = "";
+      // Use `map` to process the filtered "pager" events asynchronously
+      const pager = await Promise.all(
+        msgs.filter(msg => msg.type === 'pager').map(
+          async (msg) => {
+            return await parseTypePager(msg);
+          }
+        )
+      );
+
+      // Nullify the output area of content
+      outputCodeDiv.innerHTML = "";
+      outputGraphDiv.innerHTML = "";
 
       // Design an output object for messages
       const pre = document.createElement("pre");
       if (/\S/.test(out)) {
-        // Display results as text
-        const code = document.createElement("code");
-        code.innerText = out;
-        pre.appendChild(code);
+        // Display results as HTML elements to retain output styling
+        const div = document.createElement("div");
+        div.innerHTML = out;
+        pre.appendChild(div);
       } else {
         // If nothing is present, hide the element.
         pre.style.visibility = "hidden";
       }
-      outputDiv.appendChild(pre);
+      outputCodeDiv.appendChild(pre);
 
       // Place the graphics on the canvas
       if (canvas) {
-        const p = document.createElement("p");
-        p.appendChild(canvas);
-        outputDiv.appendChild(p);
+        outputGraphDiv.appendChild(canvas);
+      }
+
+      // Display the pager data
+      if (pager) {
+        // Use the `pre` element to preserve whitespace.
+        pager.forEach((paged_data, index) => {
+          let pre_pager = document.createElement("pre");
+          pre_pager.innerText = paged_data;
+          pre_pager.classList.add("qwebr-output-code-pager");
+          pre_pager.setAttribute("id", "qwebr-output-code-pager-editor-2-result-" + (index + 1));
+          outputCodeDiv.appendChild(pre_pager);
+        });
       }
     } finally {
       // Clean up the remaining code
       webRCodeShelter.purge();
-      runButton.disabled = false;
     }
+
+    // Switch to allowing execution of code
+    document.querySelectorAll(".qwebr-button-run").forEach((btn) => {
+      btn.disabled = false;
+    });
+
+    // Revert to the initial code cell state
+    runButton.innerHTML = '<i class="fa-solid fa-play qwebr-icon-run-code"></i> <span>Run Code</span>';
   }
 
   // Add a click event listener to the run button
   runButton.onclick = function () {
     executeCode(editor.getValue());
   };
-</script><button class="btn btn-default btn-webr" disabled="" type="button" id="webr-run-button-3">Loading
+</script><button class="btn btn-default qwebr-button-run" disabled="" type="button" id="qwebr-button-run-3">🟡 Loading
   webR...</button>
-<div id="webr-editor-3"></div>
-<div id="webr-code-output-3" aria-live="assertive">
-  <pre style="visibility: hidden"></pre>
+<div id="qwebr-interactive-area-3" class="qwebr-interactive-area">
+  <div id="qwebr-editor-3" class="qwebr-editor"></div>
+  <div id="qwebr-output-code-area-3" class="qwebr-output-code-area" aria-live="assertive">
+    <pre style="visibility: hidden"></pre>
+  </div>
+</div>
+<div id="qwebr-output-graph-area-3" class="qwebr-output-graph-area">
 </div>
 <script type="module">
   // Retrieve webR code cell information
-  const runButton = document.getElementById("webr-run-button-3");
-  const outputDiv = document.getElementById("webr-code-output-3");
-  const editorDiv = document.getElementById("webr-editor-3");
+  const runButton = document.getElementById("qwebr-button-run-3");
+  const outputCodeDiv = document.getElementById("qwebr-output-code-area-3");
+  const editorDiv = document.getElementById("qwebr-editor-3");
+  const outputGraphDiv = document.getElementById("qwebr-output-graph-area-3");
 
   // Add a light grey outline around the code editor
   editorDiv.style.border = "1px solid #eee";
@@ -777,20 +1144,6 @@ mtcars |>
       hideCursorInOverviewRuler: true  // Remove cursor indictor in right hand side scroll bar
     });
 
-    // Add a keydown event listener for Shift+Enter using the addCommand method
-    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, function () {
-      // Code to run when Shift+Enter is pressed
-      executeCode(editor.getValue());
-    });
-
-    // Add a keydown event listener for Ctrl+Enter to run selected code
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, function () {
-      // Get the selected text from the editor
-      const selectedText = editor.getModel().getValueInRange(editor.getSelection());
-      // Code to run when Ctrl+Enter is pressed (run selected code)
-      executeCode(selectedText);
-    });
-
     // Dynamically modify the height of the editor window if new lines are added.
     let ignoreEvent = false;
     const updateHeight = () => {
@@ -808,6 +1161,65 @@ mtcars |>
       }
     };
 
+    // Helper function to check if selected text is empty
+    function isEmptyCodeText(selectedCodeText) {
+      return (selectedCodeText === null || selectedCodeText === undefined || selectedCodeText === "");
+    }
+
+    // Registry of keyboard shortcuts that should be re-added to each editor window
+    // when focus changes.
+    const addWebRKeyboardShortCutCommands = () => {
+      // Add a keydown event listener for Shift+Enter to run all code in cell
+      editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
+
+        // Retrieve all text inside the editor
+        executeCode(editor.getValue());
+      });
+
+      // Add a keydown event listener for CMD/Ctrl+Enter to run selected code
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+
+        // Get the selected text from the editor
+        const selectedText = editor.getModel().getValueInRange(editor.getSelection());
+        // Check if no code is selected
+        if (isEmptyCodeText(selectedText)) {
+          // Obtain the current cursor position
+          let currentPosition = editor.getPosition();
+          // Retrieve the current line content
+          let currentLine = editor.getModel().getLineContent(currentPosition.lineNumber);
+
+          // Propose a new position to move the cursor to
+          let newPosition = new monaco.Position(currentPosition.lineNumber + 1, 1);
+
+          // Check if the new position is beyond the last line of the editor
+          if (newPosition.lineNumber > editor.getModel().getLineCount()) {
+            // Add a new line at the end of the editor
+            editor.executeEdits("addNewLine", [{
+            range: new monaco.Range(newPosition.lineNumber, 1, newPosition.lineNumber, 1),
+            text: "\n", 
+            forceMoveMarkers: true,
+            }]);
+          }
+          
+          // Run the entire line of code.
+          executeCode(currentLine);
+
+          // Move cursor to new position
+          editor.setPosition(newPosition);
+        } else {
+          // Code to run when Ctrl+Enter is pressed with selected code
+          executeCode(selectedText);
+        }
+      });
+    }
+
+    // Register an on focus event handler for when a code cell is selected to update
+    // what keyboard shortcut commands should work.
+    // This is a workaround to fix a regression that happened with multiple
+    // editor windows since Monaco 0.32.0 
+    // https://github.com/microsoft/monaco-editor/issues/2947
+    editor.onDidFocusEditorText(addWebRKeyboardShortCutCommands);
+
     // Register an on change event for when new code is added to the editor window
     editor.onDidContentSizeChange(updateHeight);
 
@@ -817,14 +1229,52 @@ mtcars |>
 
   // Function to execute the code (accepts code as an argument)
   async function executeCode(codeToRun) {
-    // Disable run button for code cell active
-    runButton.disabled = true;
+
+    // Disallowing execution of other code cells
+    document.querySelectorAll(".qwebr-button-run").forEach((btn) => {
+      btn.disabled = true;
+    });
+
+    // Emphasize the active code cell
+    runButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin qwebr-icon-status-spinner"></i> <span>Run Code</span>';
 
     // Create a canvas variable for graphics
     let canvas = undefined;
 
+    // Create a pager variable for help/file contents
+    let pager = [];
+
+    // Process 
+    async function parseTypePager(msg) { 
+
+        // Split out the event data
+        const { path, title, deleteFile } = msg.data; 
+
+        // Process the pager data by reading the information from disk
+        const paged_data = await webR.FS.readFile(path).then((data) => {
+          // Obtain the file content
+          let content = new TextDecoder().decode(data);
+
+          // Remove excessive backspace characters until none remain
+          while(content.match(/.[\b]/)){
+            content = content.replace(/.[\b]/g, '');
+          }
+
+          // Returned cleaned data
+          return content;
+        });
+
+        // Unlink file if needed
+        if (deleteFile) { 
+          await webR.FS.unlink(path); 
+        } 
+
+        // Return extracted data with spaces
+        return paged_data;
+    } 
+
     // Initialize webR
-    await globalThis.webR.init();
+    await webR.init();
 
     // Setup a webR canvas by making a namespace call into the {webr} package
     await webR.evalRVoid("webr::canvas(width=504, height=360)");
@@ -844,15 +1294,20 @@ mtcars |>
       await webR.evalRVoid("dev.off()");
 
       // Merge output streams of STDOUT and STDErr (messages and errors are combined.)
-      const out = result.output.filter(
-        evt => evt.type == "stdout" || evt.type == "stderr"
-      ).map((evt) => evt.data).join("\n");
+      const out = result.output
+        .filter(evt => evt.type === "stdout" || evt.type === "stderr")
+        .map((evt, index) => {
+          const className = `qwebr-output-code-${evt.type}`;
+          return `<code id="${className}-editor-3-result-${index + 1}" class="${className}">${evt.data}</code>`;
+        })
+        .join("\n");
+
 
       // Clean the state
       const msgs = await webR.flush();
 
-      // Output each image stored
-      msgs.forEach(msg => {
+      // Output each image event stored
+      msgs.forEach((msg) => {
         // Determine if old canvas can be used or a new canvas is required.
         if (msg.type === 'canvas'){
           // Add image to the current canvas
@@ -867,36 +1322,63 @@ mtcars |>
             canvas.style.display = "block";
             canvas.style.margin = "auto";
           }
-        }
+        } 
       });
 
-      // Nullify the outputDiv of content
-      outputDiv.innerHTML = "";
+      // Use `map` to process the filtered "pager" events asynchronously
+      const pager = await Promise.all(
+        msgs.filter(msg => msg.type === 'pager').map(
+          async (msg) => {
+            return await parseTypePager(msg);
+          }
+        )
+      );
+
+      // Nullify the output area of content
+      outputCodeDiv.innerHTML = "";
+      outputGraphDiv.innerHTML = "";
 
       // Design an output object for messages
       const pre = document.createElement("pre");
       if (/\S/.test(out)) {
-        // Display results as text
-        const code = document.createElement("code");
-        code.innerText = out;
-        pre.appendChild(code);
+        // Display results as HTML elements to retain output styling
+        const div = document.createElement("div");
+        div.innerHTML = out;
+        pre.appendChild(div);
       } else {
         // If nothing is present, hide the element.
         pre.style.visibility = "hidden";
       }
-      outputDiv.appendChild(pre);
+      outputCodeDiv.appendChild(pre);
 
       // Place the graphics on the canvas
       if (canvas) {
-        const p = document.createElement("p");
-        p.appendChild(canvas);
-        outputDiv.appendChild(p);
+        outputGraphDiv.appendChild(canvas);
+      }
+
+      // Display the pager data
+      if (pager) {
+        // Use the `pre` element to preserve whitespace.
+        pager.forEach((paged_data, index) => {
+          let pre_pager = document.createElement("pre");
+          pre_pager.innerText = paged_data;
+          pre_pager.classList.add("qwebr-output-code-pager");
+          pre_pager.setAttribute("id", "qwebr-output-code-pager-editor-3-result-" + (index + 1));
+          outputCodeDiv.appendChild(pre_pager);
+        });
       }
     } finally {
       // Clean up the remaining code
       webRCodeShelter.purge();
-      runButton.disabled = false;
     }
+
+    // Switch to allowing execution of code
+    document.querySelectorAll(".qwebr-button-run").forEach((btn) => {
+      btn.disabled = false;
+    });
+
+    // Revert to the initial code cell state
+    runButton.innerHTML = '<i class="fa-solid fa-play qwebr-icon-run-code"></i> <span>Run Code</span>';
   }
 
   // Add a click event listener to the run button
@@ -905,17 +1387,22 @@ mtcars |>
   };
 </script><p><br></p>
 <p><strong>Data Manipulation</strong> with <code>dplyr</code></p>
-<button class="btn btn-default btn-webr" disabled="" type="button" id="webr-run-button-4">Loading
+<button class="btn btn-default qwebr-button-run" disabled="" type="button" id="qwebr-button-run-4">🟡 Loading
   webR...</button>
-<div id="webr-editor-4"></div>
-<div id="webr-code-output-4" aria-live="assertive">
-  <pre style="visibility: hidden"></pre>
+<div id="qwebr-interactive-area-4" class="qwebr-interactive-area">
+  <div id="qwebr-editor-4" class="qwebr-editor"></div>
+  <div id="qwebr-output-code-area-4" class="qwebr-output-code-area" aria-live="assertive">
+    <pre style="visibility: hidden"></pre>
+  </div>
+</div>
+<div id="qwebr-output-graph-area-4" class="qwebr-output-graph-area">
 </div>
 <script type="module">
   // Retrieve webR code cell information
-  const runButton = document.getElementById("webr-run-button-4");
-  const outputDiv = document.getElementById("webr-code-output-4");
-  const editorDiv = document.getElementById("webr-editor-4");
+  const runButton = document.getElementById("qwebr-button-run-4");
+  const outputCodeDiv = document.getElementById("qwebr-output-code-area-4");
+  const editorDiv = document.getElementById("qwebr-editor-4");
+  const outputGraphDiv = document.getElementById("qwebr-output-graph-area-4");
 
   // Add a light grey outline around the code editor
   editorDiv.style.border = "1px solid #eee";
@@ -937,20 +1424,6 @@ mtcars |>
       hideCursorInOverviewRuler: true  // Remove cursor indictor in right hand side scroll bar
     });
 
-    // Add a keydown event listener for Shift+Enter using the addCommand method
-    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, function () {
-      // Code to run when Shift+Enter is pressed
-      executeCode(editor.getValue());
-    });
-
-    // Add a keydown event listener for Ctrl+Enter to run selected code
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, function () {
-      // Get the selected text from the editor
-      const selectedText = editor.getModel().getValueInRange(editor.getSelection());
-      // Code to run when Ctrl+Enter is pressed (run selected code)
-      executeCode(selectedText);
-    });
-
     // Dynamically modify the height of the editor window if new lines are added.
     let ignoreEvent = false;
     const updateHeight = () => {
@@ -968,6 +1441,65 @@ mtcars |>
       }
     };
 
+    // Helper function to check if selected text is empty
+    function isEmptyCodeText(selectedCodeText) {
+      return (selectedCodeText === null || selectedCodeText === undefined || selectedCodeText === "");
+    }
+
+    // Registry of keyboard shortcuts that should be re-added to each editor window
+    // when focus changes.
+    const addWebRKeyboardShortCutCommands = () => {
+      // Add a keydown event listener for Shift+Enter to run all code in cell
+      editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
+
+        // Retrieve all text inside the editor
+        executeCode(editor.getValue());
+      });
+
+      // Add a keydown event listener for CMD/Ctrl+Enter to run selected code
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+
+        // Get the selected text from the editor
+        const selectedText = editor.getModel().getValueInRange(editor.getSelection());
+        // Check if no code is selected
+        if (isEmptyCodeText(selectedText)) {
+          // Obtain the current cursor position
+          let currentPosition = editor.getPosition();
+          // Retrieve the current line content
+          let currentLine = editor.getModel().getLineContent(currentPosition.lineNumber);
+
+          // Propose a new position to move the cursor to
+          let newPosition = new monaco.Position(currentPosition.lineNumber + 1, 1);
+
+          // Check if the new position is beyond the last line of the editor
+          if (newPosition.lineNumber > editor.getModel().getLineCount()) {
+            // Add a new line at the end of the editor
+            editor.executeEdits("addNewLine", [{
+            range: new monaco.Range(newPosition.lineNumber, 1, newPosition.lineNumber, 1),
+            text: "\n", 
+            forceMoveMarkers: true,
+            }]);
+          }
+          
+          // Run the entire line of code.
+          executeCode(currentLine);
+
+          // Move cursor to new position
+          editor.setPosition(newPosition);
+        } else {
+          // Code to run when Ctrl+Enter is pressed with selected code
+          executeCode(selectedText);
+        }
+      });
+    }
+
+    // Register an on focus event handler for when a code cell is selected to update
+    // what keyboard shortcut commands should work.
+    // This is a workaround to fix a regression that happened with multiple
+    // editor windows since Monaco 0.32.0 
+    // https://github.com/microsoft/monaco-editor/issues/2947
+    editor.onDidFocusEditorText(addWebRKeyboardShortCutCommands);
+
     // Register an on change event for when new code is added to the editor window
     editor.onDidContentSizeChange(updateHeight);
 
@@ -977,14 +1509,52 @@ mtcars |>
 
   // Function to execute the code (accepts code as an argument)
   async function executeCode(codeToRun) {
-    // Disable run button for code cell active
-    runButton.disabled = true;
+
+    // Disallowing execution of other code cells
+    document.querySelectorAll(".qwebr-button-run").forEach((btn) => {
+      btn.disabled = true;
+    });
+
+    // Emphasize the active code cell
+    runButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin qwebr-icon-status-spinner"></i> <span>Run Code</span>';
 
     // Create a canvas variable for graphics
     let canvas = undefined;
 
+    // Create a pager variable for help/file contents
+    let pager = [];
+
+    // Process 
+    async function parseTypePager(msg) { 
+
+        // Split out the event data
+        const { path, title, deleteFile } = msg.data; 
+
+        // Process the pager data by reading the information from disk
+        const paged_data = await webR.FS.readFile(path).then((data) => {
+          // Obtain the file content
+          let content = new TextDecoder().decode(data);
+
+          // Remove excessive backspace characters until none remain
+          while(content.match(/.[\b]/)){
+            content = content.replace(/.[\b]/g, '');
+          }
+
+          // Returned cleaned data
+          return content;
+        });
+
+        // Unlink file if needed
+        if (deleteFile) { 
+          await webR.FS.unlink(path); 
+        } 
+
+        // Return extracted data with spaces
+        return paged_data;
+    } 
+
     // Initialize webR
-    await globalThis.webR.init();
+    await webR.init();
 
     // Setup a webR canvas by making a namespace call into the {webr} package
     await webR.evalRVoid("webr::canvas(width=504, height=360)");
@@ -1004,15 +1574,20 @@ mtcars |>
       await webR.evalRVoid("dev.off()");
 
       // Merge output streams of STDOUT and STDErr (messages and errors are combined.)
-      const out = result.output.filter(
-        evt => evt.type == "stdout" || evt.type == "stderr"
-      ).map((evt) => evt.data).join("\n");
+      const out = result.output
+        .filter(evt => evt.type === "stdout" || evt.type === "stderr")
+        .map((evt, index) => {
+          const className = `qwebr-output-code-${evt.type}`;
+          return `<code id="${className}-editor-4-result-${index + 1}" class="${className}">${evt.data}</code>`;
+        })
+        .join("\n");
+
 
       // Clean the state
       const msgs = await webR.flush();
 
-      // Output each image stored
-      msgs.forEach(msg => {
+      // Output each image event stored
+      msgs.forEach((msg) => {
         // Determine if old canvas can be used or a new canvas is required.
         if (msg.type === 'canvas'){
           // Add image to the current canvas
@@ -1027,53 +1602,85 @@ mtcars |>
             canvas.style.display = "block";
             canvas.style.margin = "auto";
           }
-        }
+        } 
       });
 
-      // Nullify the outputDiv of content
-      outputDiv.innerHTML = "";
+      // Use `map` to process the filtered "pager" events asynchronously
+      const pager = await Promise.all(
+        msgs.filter(msg => msg.type === 'pager').map(
+          async (msg) => {
+            return await parseTypePager(msg);
+          }
+        )
+      );
+
+      // Nullify the output area of content
+      outputCodeDiv.innerHTML = "";
+      outputGraphDiv.innerHTML = "";
 
       // Design an output object for messages
       const pre = document.createElement("pre");
       if (/\S/.test(out)) {
-        // Display results as text
-        const code = document.createElement("code");
-        code.innerText = out;
-        pre.appendChild(code);
+        // Display results as HTML elements to retain output styling
+        const div = document.createElement("div");
+        div.innerHTML = out;
+        pre.appendChild(div);
       } else {
         // If nothing is present, hide the element.
         pre.style.visibility = "hidden";
       }
-      outputDiv.appendChild(pre);
+      outputCodeDiv.appendChild(pre);
 
       // Place the graphics on the canvas
       if (canvas) {
-        const p = document.createElement("p");
-        p.appendChild(canvas);
-        outputDiv.appendChild(p);
+        outputGraphDiv.appendChild(canvas);
+      }
+
+      // Display the pager data
+      if (pager) {
+        // Use the `pre` element to preserve whitespace.
+        pager.forEach((paged_data, index) => {
+          let pre_pager = document.createElement("pre");
+          pre_pager.innerText = paged_data;
+          pre_pager.classList.add("qwebr-output-code-pager");
+          pre_pager.setAttribute("id", "qwebr-output-code-pager-editor-4-result-" + (index + 1));
+          outputCodeDiv.appendChild(pre_pager);
+        });
       }
     } finally {
       // Clean up the remaining code
       webRCodeShelter.purge();
-      runButton.disabled = false;
     }
+
+    // Switch to allowing execution of code
+    document.querySelectorAll(".qwebr-button-run").forEach((btn) => {
+      btn.disabled = false;
+    });
+
+    // Revert to the initial code cell state
+    runButton.innerHTML = '<i class="fa-solid fa-play qwebr-icon-run-code"></i> <span>Run Code</span>';
   }
 
   // Add a click event listener to the run button
   runButton.onclick = function () {
     executeCode(editor.getValue());
   };
-</script><button class="btn btn-default btn-webr" disabled="" type="button" id="webr-run-button-5">Loading
+</script><button class="btn btn-default qwebr-button-run" disabled="" type="button" id="qwebr-button-run-5">🟡 Loading
   webR...</button>
-<div id="webr-editor-5"></div>
-<div id="webr-code-output-5" aria-live="assertive">
-  <pre style="visibility: hidden"></pre>
+<div id="qwebr-interactive-area-5" class="qwebr-interactive-area">
+  <div id="qwebr-editor-5" class="qwebr-editor"></div>
+  <div id="qwebr-output-code-area-5" class="qwebr-output-code-area" aria-live="assertive">
+    <pre style="visibility: hidden"></pre>
+  </div>
+</div>
+<div id="qwebr-output-graph-area-5" class="qwebr-output-graph-area">
 </div>
 <script type="module">
   // Retrieve webR code cell information
-  const runButton = document.getElementById("webr-run-button-5");
-  const outputDiv = document.getElementById("webr-code-output-5");
-  const editorDiv = document.getElementById("webr-editor-5");
+  const runButton = document.getElementById("qwebr-button-run-5");
+  const outputCodeDiv = document.getElementById("qwebr-output-code-area-5");
+  const editorDiv = document.getElementById("qwebr-editor-5");
+  const outputGraphDiv = document.getElementById("qwebr-output-graph-area-5");
 
   // Add a light grey outline around the code editor
   editorDiv.style.border = "1px solid #eee";
@@ -1103,20 +1710,6 @@ mtcars |>
       hideCursorInOverviewRuler: true  // Remove cursor indictor in right hand side scroll bar
     });
 
-    // Add a keydown event listener for Shift+Enter using the addCommand method
-    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, function () {
-      // Code to run when Shift+Enter is pressed
-      executeCode(editor.getValue());
-    });
-
-    // Add a keydown event listener for Ctrl+Enter to run selected code
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, function () {
-      // Get the selected text from the editor
-      const selectedText = editor.getModel().getValueInRange(editor.getSelection());
-      // Code to run when Ctrl+Enter is pressed (run selected code)
-      executeCode(selectedText);
-    });
-
     // Dynamically modify the height of the editor window if new lines are added.
     let ignoreEvent = false;
     const updateHeight = () => {
@@ -1134,6 +1727,65 @@ mtcars |>
       }
     };
 
+    // Helper function to check if selected text is empty
+    function isEmptyCodeText(selectedCodeText) {
+      return (selectedCodeText === null || selectedCodeText === undefined || selectedCodeText === "");
+    }
+
+    // Registry of keyboard shortcuts that should be re-added to each editor window
+    // when focus changes.
+    const addWebRKeyboardShortCutCommands = () => {
+      // Add a keydown event listener for Shift+Enter to run all code in cell
+      editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
+
+        // Retrieve all text inside the editor
+        executeCode(editor.getValue());
+      });
+
+      // Add a keydown event listener for CMD/Ctrl+Enter to run selected code
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+
+        // Get the selected text from the editor
+        const selectedText = editor.getModel().getValueInRange(editor.getSelection());
+        // Check if no code is selected
+        if (isEmptyCodeText(selectedText)) {
+          // Obtain the current cursor position
+          let currentPosition = editor.getPosition();
+          // Retrieve the current line content
+          let currentLine = editor.getModel().getLineContent(currentPosition.lineNumber);
+
+          // Propose a new position to move the cursor to
+          let newPosition = new monaco.Position(currentPosition.lineNumber + 1, 1);
+
+          // Check if the new position is beyond the last line of the editor
+          if (newPosition.lineNumber > editor.getModel().getLineCount()) {
+            // Add a new line at the end of the editor
+            editor.executeEdits("addNewLine", [{
+            range: new monaco.Range(newPosition.lineNumber, 1, newPosition.lineNumber, 1),
+            text: "\n", 
+            forceMoveMarkers: true,
+            }]);
+          }
+          
+          // Run the entire line of code.
+          executeCode(currentLine);
+
+          // Move cursor to new position
+          editor.setPosition(newPosition);
+        } else {
+          // Code to run when Ctrl+Enter is pressed with selected code
+          executeCode(selectedText);
+        }
+      });
+    }
+
+    // Register an on focus event handler for when a code cell is selected to update
+    // what keyboard shortcut commands should work.
+    // This is a workaround to fix a regression that happened with multiple
+    // editor windows since Monaco 0.32.0 
+    // https://github.com/microsoft/monaco-editor/issues/2947
+    editor.onDidFocusEditorText(addWebRKeyboardShortCutCommands);
+
     // Register an on change event for when new code is added to the editor window
     editor.onDidContentSizeChange(updateHeight);
 
@@ -1143,14 +1795,52 @@ mtcars |>
 
   // Function to execute the code (accepts code as an argument)
   async function executeCode(codeToRun) {
-    // Disable run button for code cell active
-    runButton.disabled = true;
+
+    // Disallowing execution of other code cells
+    document.querySelectorAll(".qwebr-button-run").forEach((btn) => {
+      btn.disabled = true;
+    });
+
+    // Emphasize the active code cell
+    runButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin qwebr-icon-status-spinner"></i> <span>Run Code</span>';
 
     // Create a canvas variable for graphics
     let canvas = undefined;
 
+    // Create a pager variable for help/file contents
+    let pager = [];
+
+    // Process 
+    async function parseTypePager(msg) { 
+
+        // Split out the event data
+        const { path, title, deleteFile } = msg.data; 
+
+        // Process the pager data by reading the information from disk
+        const paged_data = await webR.FS.readFile(path).then((data) => {
+          // Obtain the file content
+          let content = new TextDecoder().decode(data);
+
+          // Remove excessive backspace characters until none remain
+          while(content.match(/.[\b]/)){
+            content = content.replace(/.[\b]/g, '');
+          }
+
+          // Returned cleaned data
+          return content;
+        });
+
+        // Unlink file if needed
+        if (deleteFile) { 
+          await webR.FS.unlink(path); 
+        } 
+
+        // Return extracted data with spaces
+        return paged_data;
+    } 
+
     // Initialize webR
-    await globalThis.webR.init();
+    await webR.init();
 
     // Setup a webR canvas by making a namespace call into the {webr} package
     await webR.evalRVoid("webr::canvas(width=504, height=360)");
@@ -1170,15 +1860,20 @@ mtcars |>
       await webR.evalRVoid("dev.off()");
 
       // Merge output streams of STDOUT and STDErr (messages and errors are combined.)
-      const out = result.output.filter(
-        evt => evt.type == "stdout" || evt.type == "stderr"
-      ).map((evt) => evt.data).join("\n");
+      const out = result.output
+        .filter(evt => evt.type === "stdout" || evt.type === "stderr")
+        .map((evt, index) => {
+          const className = `qwebr-output-code-${evt.type}`;
+          return `<code id="${className}-editor-5-result-${index + 1}" class="${className}">${evt.data}</code>`;
+        })
+        .join("\n");
+
 
       // Clean the state
       const msgs = await webR.flush();
 
-      // Output each image stored
-      msgs.forEach(msg => {
+      // Output each image event stored
+      msgs.forEach((msg) => {
         // Determine if old canvas can be used or a new canvas is required.
         if (msg.type === 'canvas'){
           // Add image to the current canvas
@@ -1193,36 +1888,63 @@ mtcars |>
             canvas.style.display = "block";
             canvas.style.margin = "auto";
           }
-        }
+        } 
       });
 
-      // Nullify the outputDiv of content
-      outputDiv.innerHTML = "";
+      // Use `map` to process the filtered "pager" events asynchronously
+      const pager = await Promise.all(
+        msgs.filter(msg => msg.type === 'pager').map(
+          async (msg) => {
+            return await parseTypePager(msg);
+          }
+        )
+      );
+
+      // Nullify the output area of content
+      outputCodeDiv.innerHTML = "";
+      outputGraphDiv.innerHTML = "";
 
       // Design an output object for messages
       const pre = document.createElement("pre");
       if (/\S/.test(out)) {
-        // Display results as text
-        const code = document.createElement("code");
-        code.innerText = out;
-        pre.appendChild(code);
+        // Display results as HTML elements to retain output styling
+        const div = document.createElement("div");
+        div.innerHTML = out;
+        pre.appendChild(div);
       } else {
         // If nothing is present, hide the element.
         pre.style.visibility = "hidden";
       }
-      outputDiv.appendChild(pre);
+      outputCodeDiv.appendChild(pre);
 
       // Place the graphics on the canvas
       if (canvas) {
-        const p = document.createElement("p");
-        p.appendChild(canvas);
-        outputDiv.appendChild(p);
+        outputGraphDiv.appendChild(canvas);
+      }
+
+      // Display the pager data
+      if (pager) {
+        // Use the `pre` element to preserve whitespace.
+        pager.forEach((paged_data, index) => {
+          let pre_pager = document.createElement("pre");
+          pre_pager.innerText = paged_data;
+          pre_pager.classList.add("qwebr-output-code-pager");
+          pre_pager.setAttribute("id", "qwebr-output-code-pager-editor-5-result-" + (index + 1));
+          outputCodeDiv.appendChild(pre_pager);
+        });
       }
     } finally {
       // Clean up the remaining code
       webRCodeShelter.purge();
-      runButton.disabled = false;
     }
+
+    // Switch to allowing execution of code
+    document.querySelectorAll(".qwebr-button-run").forEach((btn) => {
+      btn.disabled = false;
+    });
+
+    // Revert to the initial code cell state
+    runButton.innerHTML = '<i class="fa-solid fa-play qwebr-icon-run-code"></i> <span>Run Code</span>';
   }
 
   // Add a click event listener to the run button
@@ -1231,7 +1953,18 @@ mtcars |>
   };
 </script>
 
-</section></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
+</section><div id="quarto-appendix" class="default"><section class="quarto-appendix-contents"><h2 class="anchored quarto-appendix-heading">Citation</h2><div><div class="quarto-appendix-secondary-label">BibTeX citation:</div><pre class="sourceCode code-with-copy quarto-appendix-bibtex"><code class="sourceCode bibtex">@online{2023,
+  author = {},
+  title = {Run {R} Code {In} the {Browser}},
+  pages = {undefined},
+  date = {2023-06-10},
+  url = {https://xinzhuo.work/blog/run R code in the browser},
+  langid = {en}
+}
+</code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre><div class="quarto-appendix-secondary-label">For attribution, please cite this work as:</div><div id="ref-2023" class="csl-entry quarto-appendix-citeas" role="listitem">
+<span>“Run R Code In the Browser.”</span> 2023. June 10, 2023. <a href="https://xinzhuo.work/blog/run R code in the browser">https://xinzhuo.work/blog/run
+R code in the browser</a>.
+</div></div></section></div></main><!-- /main --><script id="quarto-html-after-body" type="application/javascript">
 window.document.addEventListener("DOMContentLoaded", function (event) {
   const toggleBodyColorMode = (bsSheetEl) => {
     const mode = bsSheetEl.getAttribute("data-mode");
@@ -1493,18 +2226,57 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
   }
   const xrefs = window.document.querySelectorAll('a.quarto-xref');
   const processXRef = (id, note) => {
-    if (id.startsWith('sec-')) {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    const typesetMath = (el) => {
+      if (window.MathJax) {
+        // MathJax Typeset
+        window.MathJax.typeset([el]);
+      } else if (window.katex) {
+        // KaTeX Render
+        var mathElements = el.getElementsByClassName("math");
+        var macros = [];
+        for (var i = 0; i < mathElements.length; i++) {
+          var texText = mathElements[i].firstChild;
+          if (mathElements[i].tagName == "SPAN") {
+            window.katex.render(texText.data, mathElements[i], {
+              displayMode: mathElements[i].classList.contains('display'),
+              throwOnError: false,
+              macros: macros,
+              fleqn: false
+            });
+          }
+        }
+      }
+    }
+    if (id === null || id.startsWith('sec-')) {
       // Special case sections, only their first couple elements
       const container = document.createElement("div");
       if (note.children && note.children.length > 2) {
         for (let i = 0; i < 2; i++) {
           container.appendChild(note.children[i].cloneNode(true));
         }
+        typesetMath(container);
         return container.innerHTML
       } else {
+        typesetMath(note);
         return note.innerHTML;
       }
     } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      typesetMath(note);
       return note.innerHTML;
     }
   }
@@ -1514,27 +2286,56 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
       instance.disable();
       let url = xref.getAttribute('href');
       let hash = undefined; 
-      try { hash = new URL(url).hash; } catch {}
-      const id = hash.replace(/^#\/?/, "");
-      const note = window.document.getElementById(id);
-      if (note !== null) {
-        try {
-          const html = processXRef(id, note);
-          instance.setContent(html);
-        } finally {
-          instance.enable();
-          instance.show();
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
         }
       } else {
-        // See if we can fetch this
-        fetch(url.split('#')[0])
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
         .then(res => res.text())
         .then(html => {
           const parser = new DOMParser();
           const htmlDoc = parser.parseFromString(html, "text/html");
-          const note = htmlDoc.getElementById(id);
+          const note = htmlDoc.querySelector('main.content');
           if (note !== null) {
-            const html = processXRef(id, note);
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
             instance.setContent(html);
           } 
         }).finally(() => {
@@ -1612,8 +2413,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
         });
         selectedAnnoteEl = undefined;
       };
-      // Handle positioning of the toggle
-      window.addEventListener(
+        // Handle positioning of the toggle
+    window.addEventListener(
       "resize",
       throttle(() => {
         elRect = undefined;
@@ -1621,81 +2422,42 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
           selectCodeLines(selectedAnnoteEl);
         }
       }, 10)
-      );
-      function throttle(fn, ms) {
-      let throttle = false;
-      let timer;
-        return (...args) => {
-          if(!throttle) { // first call gets through
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
               fn.apply(this, args);
-              throttle = true;
-          } else { // all the others get throttled
-              if(timer) clearTimeout(timer); // cancel #2
-              timer = setTimeout(() => {
-                fn.apply(this, args);
-                timer = throttle = false;
-              }, ms);
-          }
-        };
-      }
-      const annoteTargets = window.document.querySelectorAll('.code-annotation-anchor');
-      for (let i=0; i<annoteTargets.length; i++) {
-        const annoteTarget = annoteTargets[i];
-        const targetCell = annoteTarget.getAttribute("data-target-cell");
-        const targetAnnotation = annoteTarget.getAttribute("data-target-annotation");
-        const contentFn = () => {
-          const content = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
-          if (content) {
-            const tipContent = content.cloneNode(true);
-            tipContent.classList.add("code-annotation-tip-content");
-            return tipContent.outerHTML;
-          }
+              timer = throttle = false;
+            }, ms);
         }
-        const config = {
-          allowHTML: true,
-          content: contentFn,
-          onShow: (instance) => {
-            selectCodeLines(instance.reference);
-            instance.reference.classList.add('code-annotation-active');
-            window.tippy.hideAll();
-          },
-          onHide: (instance) => {
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
             unselectCodeLines();
-            instance.reference.classList.remove('code-annotation-active');
-          },
-          maxWidth: 300,
-          delay: [50, 0],
-          duration: [200, 0],
-          offset: [5, 10],
-          arrow: true,
-          appendTo: function(el) {
-            return el.parentElement.parentElement.parentElement;
-          },
-          interactive: true,
-          interactiveBorder: 10,
-          theme: 'quarto',
-          placement: 'right',
-          popperOptions: {
-            modifiers: [
-            {
-              name: 'flip',
-              options: {
-                flipVariations: false, // true by default
-                allowedAutoPlacements: ['right'],
-                fallbackPlacements: ['right', 'top', 'top-start', 'top-end'],
-              },
-            },
-            {
-              name: 'preventOverflow',
-              options: {
-                mainAxis: false,
-                altAxis: false
-              }
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
             }
-            ]        
-          }      
-        };
-        window.tippy(annoteTarget, config); 
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
       }
   const findCites = (el) => {
     const parentEl = el.parentElement;
@@ -1735,17 +2497,21 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     }
   }
     var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
       var filterRegex = new RegExp("https:\/\/xinzhuo\.work");
     var isInternal = (href) => {
-        return filterRegex.test(href) || localhostRegex.test(href);
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
     }
     // Inspect non-navigation links and adorn them if external
- 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item)');
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool)');
     for (var i=0; i<links.length; i++) {
       const link = links[i];
       if (!isInternal(link.href)) {
           // target, if specified
           link.setAttribute("target", "_blank");
+          if (link.getAttribute("rel") === null) {
+            link.setAttribute("rel", "noopener");
+          }
       }
     }
 });

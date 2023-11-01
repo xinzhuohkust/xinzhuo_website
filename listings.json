@@ -1,0 +1,36 @@
+[
+  {
+    "listing": "/index.html",
+    "items": []
+  },
+  {
+    "listing": "/blog/index.html",
+    "items": [
+      "/blog/reverse_js/index.html",
+      "/blog/web crawling/index.html",
+      "/blog/run R code in the browser/index.html",
+      "/blog/causal inference/index.html",
+      "/blog/sentiment analysis/index.html"
+    ]
+  },
+  {
+    "listing": "/data/index.html",
+    "items": [
+      "/data/penality/index.html"
+    ]
+  },
+  {
+    "listing": "/project/index.html",
+    "items": [
+      "/project/packages/Geocoding/index.html",
+      "/project/packages/RconnectPy/index.html",
+      "/project/packages/sentimentRPy/index.html"
+    ]
+  },
+  {
+    "listing": "/research/index.html",
+    "items": [
+      "/research/articles/index.html"
+    ]
+  }
+]

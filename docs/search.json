@@ -1,0 +1,786 @@
+[
+  {
+    "objectID": "index.html#education",
+    "href": "index.html#education",
+    "title": "Xinzhuo Huang",
+    "section": "Education",
+    "text": "Education\n\nM.Phil. in Social Science, currently enrolled\nHong Kong University of Science and Technology, Hong Kong\nFull Scholarships\nM.Sc. in Global China Studies, 2022\nHong Kong University of Science and Technology, Hong Kong\nDean’s Award\nLL.B. in Political Science (major) and Law (minor), 2020\nEast China University of Political Science and Law, China\nOutstanding Graduation Thesis Award\nOutstanding Graduate Award"
+  },
+  {
+    "objectID": "index.html#interests",
+    "href": "index.html#interests",
+    "title": "Xinzhuo Huang",
+    "section": "Interests",
+    "text": "Interests\n\nChinese Politics\n\nresponsiveness\nsocial protest\n\nApplication of ML\n\ntext analysis\ncausal inference\n\nData Engineering\n\nweb crawling\ndata visualization"
+  },
+  {
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
+    "section": "",
+    "text": "About this site"
+  },
+  {
+    "objectID": "blog/causal inference/index.html",
+    "href": "blog/causal inference/index.html",
+    "title": "Causal Inference Practical Methods",
+    "section": "",
+    "text": "Coderequire(\"pacman\")\n\np_load(tibble, dplyr, furrr, purrr, tidyr, stringr, rio, ggplot2, knitr, broom, kableExtra,\n    lfe, plm, ggthemes, skimr, ggpmisc, sysfonts, extrafont, AER, dagitty, ggdag,\n    rdrobust, rddensity, did)\n\nprint_kable &lt;- \\(result, title) {\n    kable(result, digits = 3, caption = title, booktabs = TRUE)\n}"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#linear-dummy-variabel-model",
+    "href": "blog/causal inference/index.html#linear-dummy-variabel-model",
+    "title": "Causal Inference Practical Methods",
+    "section": "Linear Dummy Variabel Model",
+    "text": "Linear Dummy Variabel Model\nFixed effects model shows that the beer tax does reduce fatalities.\n\nCodefatality &lt;- import(\"E:/OneDrive - HKUST Connect/assignment/assignment3/fatality.csv\",\n    setclass = \"tibble\")\n\nfatality %&gt;%\n    ggplot(aes(x = beertax, y = fatality_rate)) + geom_point(aes(color = state),\n    size = 2.3) + geom_smooth(aes(group = state, color = state), method = \"lm\", se = FALSE) +\n    geom_smooth(method = \"lm\", linetype = \"dashed\", color = \"#8E8E93\") + xlab(\"Beer Tax\") +\n    ylab(\"Fatalities\") + theme_clean() + theme(panel.grid.minor = element_blank(),\n    legend.position = \"none\")\n\n\n\nThe relationship between the beer tax and fatality\n\n\n\n\nCodelinear_dummy_formula &lt;- fatality %&gt;%\n    pull(state) %&gt;%\n    sprintf(\"`%s`\", .) %&gt;%\n    unique() %&gt;%\n    str_c(collapse = \" + \") %&gt;%\n    str_c(\"fatality_rate ~ 0 + beertax + \", ., collapse = \" + \") %&gt;%\n    as.formula()\n\nlinear_dummy &lt;- fatality %&gt;%\n    pivot_wider(names_from = state, values_from = state) %&gt;%\n    mutate(across(3:50, ~str_replace(., \"\\\\w+\", \"1\")), across(3:50, ~replace_na(.,\n        \"0\")), across(3:50, as.numeric)) %&gt;%\n    lm(linear_dummy_formula, data = .)\n\nlinear_dummy %&gt;%\n    tidy() %&gt;%\n    slice(1) %&gt;%\n    print_kable(title = \"Linear dummy variable model\")\n\n\nLinear dummy variable model\n\nterm\nestimate\nstd.error\nstatistic\np.value\n\n\nbeertax\n-0.656\n0.188\n-3.491\n0.001"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#fixed-effect-in-standard-packages",
+    "href": "blog/causal inference/index.html#fixed-effect-in-standard-packages",
+    "title": "Causal Inference Practical Methods",
+    "section": "Fixed effect in standard packages",
+    "text": "Fixed effect in standard packages\n\nCodefixed_effect_plm &lt;- fatality %&gt;%\n    pdata.frame(index = c(\"state\")) %&gt;%\n    plm(fatality_rate ~ beertax, data = ., model = \"within\", effect = \"individual\")\n\nfixed_clustered_plm &lt;- fixed_effect_plm %&gt;%\n    tidy() %&gt;%\n    mutate(category = \"fixed effects with plm\", std.error = vcovHC(fixed_effect_plm,\n        type = \"HC1\", cluster = \"group\") |&gt;\n        diag() |&gt;\n        sqrt(), statistic = coef(fixed_effect_plm)/std.error, p.value = 2 * pt(abs(statistic),\n        df = fixed_effect_plm$df.residual, lower.tail = FALSE))\n\nfixed_clustered_lfe &lt;- fatality %&gt;%\n    felm(fatality_rate ~ beertax | state, cluster = \"state\", data = .) %&gt;%\n    tidy() %&gt;%\n    mutate(category = \"fixed effects with lfe\")\n\nfixed_clustered_lfe %&gt;%\n    bind_rows(fixed_clustered_plm) %&gt;%\n    print_kable(title = \"Fixed effect in standard packages\")\n\n\nFixed effect in standard packages\n\nterm\nestimate\nstd.error\nstatistic\np.value\ncategory\n\n\n\nbeertax\n-0.656\n0.292\n-2.247\n0.029\nfixed effects with lfe\n\n\nbeertax\n-0.656\n0.289\n-2.271\n0.024\nfixed effects with plm"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#pre-trends",
+    "href": "blog/causal inference/index.html#pre-trends",
+    "title": "Causal Inference Practical Methods",
+    "section": "Pre-trends",
+    "text": "Pre-trends\nBased on the figure, the parallel trend assumption may not hold, as we can see that the crime rates in Muslim/Jewish neighborhoods experienced two episodes of first decreasing, then increasing again, before increasing prior to the intervention. However, the Non Muslim/Jewish only experienced one episodes.\n\nCodecartheft &lt;- import(\"E:/OneDrive - HKUST Connect/assignment/assignment3/cartheft.dta\",\n    setclass = \"tibble\") %&gt;%\n    mutate(treatment = if_else(distance &gt; 0, 0, 1))\n\ncartheft %&gt;%\n    group_by(month, treatment, postattack) %&gt;%\n    summarise(mean = mean(cartheft)) %&gt;%\n    ggplot(aes(x = month, y = mean)) + geom_line(aes(group = treatment, color = as.factor(treatment)),\n    linewidth = 1.2, linetype = \"twodash\") + geom_vline(xintercept = 8, linetype = \"dotdash\",\n    linewidth = 1, color = \"#8E8E93\") + theme_clean() + xlab(\"Month\") + ylab(\"Mean crime rates\") +\n    theme(legend.position = \"none\") + geom_text(x = 10, y = 0.064, label = \"Muslim/Jewish\",\n    size = 3.6, fontface = \"italic\") + geom_text(x = 10, y = 0.112, label = \"Non Muslim/Jewish\",\n    size = 3.6, fontface = \"italic\")\n\n\n\nPre-trends test"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#did-as-a-linear-regression-with-interaction",
+    "href": "blog/causal inference/index.html#did-as-a-linear-regression-with-interaction",
+    "title": "Causal Inference Practical Methods",
+    "section": "DiD as a linear regression with interaction",
+    "text": "DiD as a linear regression with interaction\n\nCodedid_interaction &lt;- cartheft %&gt;%\n    lm(cartheft ~ treatment + postattack + treatment * postattack, data = .) %&gt;%\n    tidy() %&gt;%\n    slice(4) %&gt;%\n    mutate(term = \"Same-Block Police\")\n\ndid_interaction %&gt;%\n    print_kable(., title = \"linear regression with interaction\")\n\n\nlinear regression with interaction\n\nterm\nestimate\nstd.error\nstatistic\np.value\n\n\nSame-Block Police\n-0.078\n0.027\n-2.847\n0.004"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#did-asd-fixed-effect",
+    "href": "blog/causal inference/index.html#did-asd-fixed-effect",
+    "title": "Causal Inference Practical Methods",
+    "section": "DiD asd fixed effect",
+    "text": "DiD asd fixed effect\n\nCodedid_fixed &lt;- cartheft %&gt;%\n    felm(cartheft ~ treatment * postattack | blockid + month, data = .) %&gt;%\n    tidy() %&gt;%\n    slice(3) %&gt;%\n    mutate(term = \"Same-Block * Postattack\")\n\ndid_fixed %&gt;%\n    print_kable(title = \"Two way fixed effect model\")\n\n\nTwo way fixed effect model\n\nterm\nestimate\nstd.error\nstatistic\np.value\n\n\nSame-Block * Postattack\n-0.078\n0.026\n-2.992\n0.003"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#time-invariant-variables-in-fixed-effect-regressions",
+    "href": "blog/causal inference/index.html#time-invariant-variables-in-fixed-effect-regressions",
+    "title": "Causal Inference Practical Methods",
+    "section": "Time-invariant variables in fixed effect regressions",
+    "text": "Time-invariant variables in fixed effect regressions\nWe cannot estimate the coefficient for time-invariant variables since they are absorbed by the individual fixed effects.\n\nCodedid_fixed_invariant &lt;- cartheft %&gt;%\n    felm(cartheft ~ treatment * postattack + bank | blockid + month, data = .) %&gt;%\n    tidy() %&gt;%\n    slice(3:4) %&gt;%\n    mutate(term = c(\"Bank\", \"Same-Block * Postattack\"))\n\ndid_fixed_invariant %&gt;%\n    print_kable(title = \"Time-invariant variables in regression\")\n\n\nTime-invariant variables in regression\n\nterm\nestimate\nstd.error\nstatistic\np.value\n\n\n\nBank\nNaN\nNA\nNaN\nNaN\n\n\nSame-Block * Postattack\n-0.078\n0.026\n-2.992\n0.003"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#iv-estimate",
+    "href": "blog/causal inference/index.html#iv-estimate",
+    "title": "Causal Inference Practical Methods",
+    "section": "IV estimate",
+    "text": "IV estimate\nThe IV estimator is larger than the OLS estimator. Since in this study, IV is used to address endogeneity by providing a source of variation in the predictor variable that is independent of the error term. In that case, IV estimate accounts for endogeneity and provides a more reliable estimate of the true causal effect of the predictor variable on the outcome variable. The OLS estimate, on the other hand, may be biased and inconsistent in the presence of endogeneity, leading to an underestimate of the true effect size.\n\nCodedag &lt;- tribble(~name, ~label, ~x, ~y, \"educ\", \"Educ\", 4, 1, \"wage\", \"Wage\", 5, 1,\n    \"e\", \"Confounders\", 4.5, 1.5, \"Z\", \"Instrumental Variable\", 3, 1)\n\nnode_labels &lt;- dag$label\nnames(node_labels) &lt;- dag$name\n\nstatus_colors &lt;- c(exposure = \"#00BFFF\", outcome = \"#FF7F50\", latent = \"#D3D3D3\")\n\ndagify(wage ~ educ + e, educ ~ e, educ ~ Z, exposure = \"educ\", outcome = \"wage\",\n    latent = \"e\", coords = dag, labels = node_labels) %&gt;%\n    tidy_dagitty() %&gt;%\n    node_status() %&gt;%\n    ggplot(aes(x = x, y = y, xend = xend, yend = yend)) + geom_dag_edges() + geom_dag_point(aes(color = status)) +\n    geom_dag_label_repel(aes(label = label, fill = status), color = \"white\", fontface = \"bold\") +\n    scale_color_manual(values = status_colors, na.value = \"grey20\") + scale_fill_manual(values = status_colors,\n    na.value = \"grey20\") + guides(color = FALSE, fill = FALSE) + theme_dag()\n\n\n\nDirected Acyclic Graphs\n\n\n\n\nCodecard &lt;- import(\"E:/OneDrive - HKUST Connect/assignment/assignment3/card.csv\", setclass = \"tibble\")\n\nols &lt;- card %&gt;%\n    lm(lwage ~ educ, data = .) %&gt;%\n    coeftest(vcovHC, \"HC1\") %&gt;%\n    tidy() %&gt;%\n    slice(2) %&gt;%\n    mutate(method = \"OLS with robust std.error\")\n\niv &lt;- card %&gt;%\n    ivreg(lwage ~ educ | nearc4, data = .) %&gt;%\n    coeftest(vcovHC, \"HC1\") %&gt;%\n    tidy() %&gt;%\n    slice(2) %&gt;%\n    mutate(method = \"IV with robust std.error\")\n\nbind_rows(ols, iv) %&gt;%\n    print_kable(title = \"Comparison between OLS and IV\")\n\n\nComparison between OLS and IV\n\nterm\nestimate\nstd.error\nstatistic\np.value\nmethod\n\n\n\neduc\n0.052\n0.003\n17.902\n0\nOLS with robust std.error\n\n\neduc\n0.188\n0.026\n7.189\n0\nIV with robust std.error"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#manual-2sls",
+    "href": "blog/causal inference/index.html#manual-2sls",
+    "title": "Causal Inference Practical Methods",
+    "section": "Manual 2SLS",
+    "text": "Manual 2SLS\n\nCodefirst_stage &lt;- card %&gt;%\n    lm(educ ~ nearc4, data = .)\n\nmanual &lt;- card %&gt;%\n    mutate(educ = predict(first_stage)) %&gt;%\n    lm(lwage ~ educ, data = .) %&gt;%\n    coeftest(vcovHC, \"HC1\") %&gt;%\n    tidy() %&gt;%\n    slice(2) %&gt;%\n    mutate(method = \"Manual 2SLS with robust std.error\")\n\nbind_rows(manual, iv, ols) %&gt;%\n    print_kable(title = \"Comparison between OLS, IV and manual 2SLS\")\n\n\nComparison between OLS, IV and manual 2SLS\n\nterm\nestimate\nstd.error\nstatistic\np.value\nmethod\n\n\n\neduc\n0.188\n0.021\n9.149\n0\nManual 2SLS with robust std.error\n\n\neduc\n0.188\n0.026\n7.189\n0\nIV with robust std.error\n\n\neduc\n0.052\n0.003\n17.902\n0\nOLS with robust std.error"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#weak-instrument",
+    "href": "blog/causal inference/index.html#weak-instrument",
+    "title": "Causal Inference Practical Methods",
+    "section": "Weak instrument",
+    "text": "Weak instrument\nThe F statistics from the first-stage regression is larger than 10.\n\nCodewaldtest(lm(lwage ~ educ + nearc4, card), lm(lwage ~ educ, card)) %&gt;%\n    tidy %&gt;%\n    rename(F.statistic = statistic) %&gt;%\n    print_kable(title = \"Weak instrument test\")\n\n\nWeak instrument test\n\nterm\ndf.residual\ndf\nF.statistic\np.value\n\n\n\nlwage ~ educ + nearc4\n3007\nNA\nNA\nNA\n\n\nlwage ~ educ\n3008\n-1\n48.451\n0"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#interpretation-of-effect",
+    "href": "blog/causal inference/index.html#interpretation-of-effect",
+    "title": "Causal Inference Practical Methods",
+    "section": "Interpretation of effect",
+    "text": "Interpretation of effect\n\nCompliers are the individuals whose decision to attend college is influenced by the instrumental variable. In this study, compliers are the students who would attend college if they lived close to one and would not attend college if they lived far away. These students’ decisions are directly impacted by the geographical distance to college.\nAlways-takers are the individuals who would attend college regardless of the geographical distance. These students would pursue higher education even if they lived far away from a college."
+  },
+  {
+    "objectID": "blog/causal inference/index.html#rd-plot",
+    "href": "blog/causal inference/index.html#rd-plot",
+    "title": "Causal Inference Practical Methods",
+    "section": "RD plot",
+    "text": "RD plot\nWe can observe a clear difference around the cutoff.\n\nCodesenate &lt;- import(\"E:/OneDrive - HKUST Connect/assignment/assignment3/senate.csv\",\n    setclass = \"tibble\") %&gt;%\n    mutate(cutoff = if_else(margin &gt; 0, 1, 0))\n\nsenate %&gt;%\n    ggplot(aes(x = margin, y = vote, color = as.factor(cutoff))) + geom_point(size = 1,\n    alpha = 0.5, position = position_jitter(width = 0, height = 0.25)) + geom_smooth(data = filter(senate,\n    margin &gt; 0), aes(x = margin, y = vote), method = \"lm\", color = \"#8E8E93\") + geom_smooth(data = filter(senate,\n    margin &lt; 0), aes(x = margin, y = vote), method = \"lm\", color = \"#8E8E93\") + scale_color_manual(values = c(\"#FF7F50\",\n    \"#00BFFF\")) + geom_vline(xintercept = 0, linetype = \"dotdash\", linewidth = 1) +\n    theme_clean() + theme(legend.position = \"none\") + xlab(\"Winning margin of a Democratic party senator\") +\n    ylab(\"Share of vote of the senator in election\")\n\n\n\nRaw RD plot\n\n\n\n\nCoderdplot(y = senate$vote, x = senate$margin, nbins = 10, x.label = \"Winning margin of a Democratic party senator\",\n    y.label = \"Share of vote of the senator in election\", title = \"\")\n\n\n\nBinned RD plot"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#density-test",
+    "href": "blog/causal inference/index.html#density-test",
+    "title": "Causal Inference Practical Methods",
+    "section": "Density Test",
+    "text": "Density Test\n\nCodedensity_plot &lt;- rddensity(senate$margin, c = 0) %&gt;%\n    rdplotdensity(rdd = ., X = senate$margin, type = \"both\") %&gt;%\n    pluck(\"Estplot\")\n\n\n\nDensity Test"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#rd-bandwidth-selection",
+    "href": "blog/causal inference/index.html#rd-bandwidth-selection",
+    "title": "Causal Inference Practical Methods",
+    "section": "RD bandwidth selection",
+    "text": "RD bandwidth selection\nThe obtained bandwidth is 24.969. We estimate the RD effect using three different bandwidth values (ideal, twice the ideal, and half of the ideal) to determine if the value is appropriate. As we can see, the coefficients change substantially. It is considered a big bandwidth since it includes more observations in our analysis.\n\nCoderdbwselect(y = senate$vote, x = senate$margin, c = 0, p = 3, kernel = \"triangular\",\n    bwselect = \"mserd\") %&gt;%\n    pluck(\"bws\") %&gt;%\n    as_tibble() %&gt;%\n    set_names(c(\"BW est left\", \"BW est right\", \"BW bias left\", \"BW bias right\")) %&gt;%\n    print_kable(title = \"RD bandwidth selection\")\n\n\nRD bandwidth selection\n\nBW est left\nBW est right\nBW bias left\nBW bias right\n\n\n24.969\n24.969\n37.221\n37.221\n\n\n\n\n\nCoderd_models &lt;- c(24.969, 24.969 * 2, 24.969/2) %&gt;%\n    map(~rdrobust(y = senate$vote, x = senate$margin, p = 3, h = .))\n\nextract_se_es &lt;- \\(x) {\n    tibble(Estimate = pluck(x, \"Estimate\")[1], Se = pluck(x, \"se\")[1], `P-Value` = pluck(x,\n        \"pv\")[1])\n}\n\nrd_models %&gt;%\n    map_dfr(extract_se_es) %&gt;%\n    mutate(Bandwidth = c(\"24.969 (ideal)\", \"49.938 (twice)\", \"12.485 (half)\"), .before = 1) %&gt;%\n    print_kable(title = \"Sensitivity analysis using different bandwidths\")\n\n\nSensitivity analysis using different bandwidths\n\nBandwidth\nEstimate\nSe\nP-Value\n\n\n\n24.969 (ideal)\n9.126\n2.314\n0\n\n\n49.938 (twice)\n7.676\n1.781\n0\n\n\n12.485 (half)\n13.872\n3.126\n0"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#estimate-sharp-rd-treatment-effect",
+    "href": "blog/causal inference/index.html#estimate-sharp-rd-treatment-effect",
+    "title": "Causal Inference Practical Methods",
+    "section": "Estimate Sharp RD treatment effect",
+    "text": "Estimate Sharp RD treatment effect\nThe model result shows that there is an incumbency advantage.\n\nCodesharp_rd &lt;- rdrobust(y = senate$vote, x = senate$margin, h = 24.96899, p = 3)\n\ntibble(Estimate = pluck(sharp_rd, \"Estimate\")[1], Se = pluck(sharp_rd, \"se\")[1],\n    `P-Value` = pluck(sharp_rd, \"pv\")[1]) %&gt;%\n    print_kable(title = \"Sharp RD treatment effect\")\n\n\nSharp RD treatment effect\n\nEstimate\nSe\nP-Value\n\n\n9.126\n2.314\n0"
+  },
+  {
+    "objectID": "blog/causal inference/index.html#varying-orders-of-polynomial-regression",
+    "href": "blog/causal inference/index.html#varying-orders-of-polynomial-regression",
+    "title": "Causal Inference Practical Methods",
+    "section": "Varying orders of polynomial regression",
+    "text": "Varying orders of polynomial regression\nModels with different bandwidth all support the same conclusion.\n\nCodec(1:4) %&gt;%\n    map(~rdrobust(y = senate$vote, x = senate$margin, p = ., h = 24.96899)) %&gt;%\n    map_dfr(extract_se_es) %&gt;%\n    mutate(`Local-polynomial` = 1:4, .before = 1) %&gt;%\n    print_kable(\"Varying orders of polynomial regression\")\n\n\nVarying orders of polynomial regression\n\nLocal-polynomial\nEstimate\nSe\nP-Value\n\n\n\n1\n7.103\n1.264\n0\n\n\n2\n7.854\n1.797\n0\n\n\n3\n9.126\n2.314\n0\n\n\n4\n11.556\n2.882\n0"
+  },
+  {
+    "objectID": "blog/web crawling/index.html",
+    "href": "blog/web crawling/index.html",
+    "title": "Practical Techniques for Web Crawling",
+    "section": "",
+    "text": "User Agent Switcher\nBased on the Python project fake-useragent.\n\n\nCode\nuser_agents &lt;- \"https://raw.githubusercontent.com/fake-useragent/fake-useragent/master/src/fake_useragent/data/browsers.json\" %&gt;%\n    read_lines() %&gt;%\n    map(fromJSON) %&gt;%\n    unlist()\n\nlength(user_agents)  # there are 4702 user agents in total\n\n\n[1] 4702\n\n\n Get a fake user agent randomly.\n\n\nCode\nsample(user_agents, 1)\n\n\n                                                                                                                                     internet explorer84 \n\"Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.1; Trident/6.0; SLCC2; .NET CLR 2.0.50727; .NET CLR 3.5.30729; .NET CLR 3.0.30729; .NET4.0C; .NET4.0E)\" \n\n\n\n\n\nApplication: web crawler for the landchina.com\n\n\nCode\nextract_land_info &lt;- possibly(\n    function(id) {\n        info &lt;- \"https://api.landchina.com/tGdxm/result/detail\" %&gt;%\n            request() %&gt;%\n1            req_headers(\"user-agent\" = sample(user_agents, 1)) %&gt;%\n            req_timeout(12) %&gt;%\n            req_proxy(\"yourproxy\", 2023) %&gt;%\n            req_retry(\n              max_tries = 5,              \n              max_seconds = 30,\n              is_transient = ~5\n            ) %&gt;%\n            req_body_json(\n                list(\"gdGuid\" = id),\n                unbox = TRUE\n            ) %&gt;%\n            req_perform() %&gt;%\n            pluck(\"body\") %&gt;% \n            read_html() %&gt;%\n            html_text()\n\n        if (str_detect(info, id)) {\n            return(info)\n        } else {\n            return(\"error!\")\n        }\n    },\n    otherwise = \"error!\"\n) # web crawler using httr2\n\n\n\n1\n\nUser agent switcher\n\n\n\n\n\n\nCode\nextract_land_info(\"48BF016EBDD6409FA4622466C964D869\")\n\n\n\n\n[1] \"{\\\"msg\\\":\\\"操作成功\\\",\\\"code\\\":200,\\\"relate\\\":[{\\\"stage\\\":3,\\\"showStage\\\":3,\\\"gdGuid\\\":\\\"48BF016EBDD6409FA4622466C964D869\\\",\\\"zdZl\\\":\\\"台北路1号\\\\n\\\",\\\"cjJg\\\":2100,\\\"gyFs\\\":\\\"协议出让\\\"}],\\\"data\\\":{\\\"province\\\":\\\"山东省\\\",\\\"city\\\":\\\"青岛市本级\\\",\\\"xzqFullName\\\":\\\"山东省青岛市本级\\\",\\\"tdLy\\\":\\\"新增建设用地(来自存量库)\\\",\\\"gdGuid\\\":\\\"48BF016EBDD6409FA4622466C964D869\\\",\\\"xzqDm\\\":\\\"370200000\\\",\\\"tdJb\\\":\\\"二级\\\",\\\"tdZl\\\":\\\"台北路1号\\\\n\\\",\\\"gdZmj\\\":0.2613,\\\"gyFs\\\":\\\"协议出让\\\",\\\"xzMj\\\":0,\\\"clMj\\\":0.2613,\\\"je\\\":2100,\\\"qdRq\\\":1169568000000,\\\"pzJg\\\":\\\"07-7\\\\n\\\",\\\"xmCj\\\":0},\\\"payAgree\\\":[]}\""
+  },
+  {
+    "objectID": "blog/run R code in the browser/index.html",
+    "href": "blog/run R code in the browser/index.html",
+    "title": "Run R code In the Browser",
+    "section": "",
+    "text": "Sample\n\nCodelibrary(ggplot2)\n\nmtcars |&gt;\n    ggplot(aes(hp, mpg, colour = as.factor(am))) +\n    geom_point() +\n    geom_smooth(\n        method = \"lm\", \n        linetype = \"dashed\",\n        formula = y ~ x\n    ) +\n    theme_bw() +\n    theme(\n        panel.border = element_blank(),\n        legend.position = \"none\"\n    )+\n    scale_color_manual(values = c(\"#0870A5\", \"#DB444B\"))\n\n\n\n\nInteractive R code editor\nLet’s replicate the figure by running the code online. You can try different parameters yourself.\n\nBase R\nLoading\n  webR...\n\n\n  \n\n\nTidy R\nLoading\n  webR...\n\n\n  \n\nLoading\n  webR...\n\n\n  \n\n\nData Manipulation with dplyr\nLoading\n  webR...\n\n\n  \n\nLoading\n  webR...\n\n\n  \n\n\n\nCitationBibTeX citation:@online{huang2023,\n  author = {Huang, Xinzhuo},\n  title = {Run {R} Code {In} the {Browser}},\n  date = {2023-06-10},\n  url = {https://xinzhuo.work/blog/run R code in the browser},\n  langid = {en}\n}\nFor attribution, please cite this work as:\nHuang, Xinzhuo. 2023. “Run R Code In the Browser.” June 10,\n2023. https://xinzhuo.work/blog/run\nR code in the browser."
+  },
+  {
+    "objectID": "blog/index.html",
+    "href": "blog/index.html",
+    "title": "Xinzhuo Huang",
+    "section": "",
+    "text": "Social Science\n\n\n  \n\n \n\n\n   \n     \n     \n       Order By\n       Default\n         \n          Date - Oldest\n        \n         \n          Date - Newest\n        \n         \n          Reading Time (Low to High)\n        \n         \n          Reading Time (High to Low)\n        \n     \n  \n\n\n\n\n\n\n\n\nVisualization Cookbook\n\n\n3 min\n\n\nwith ggplot2\n\n\n\nJul 9, 2023\n\n\n\n\n\n\n\n\n\n\n\n\nReverse Engineering for China Judgement Online\n\n\n2 min\n\n\nby calling JavaScript in R\n\n\n\nJun 22, 2023\n\n\n\n\n\n\n\n\n\n\n\n\nPractical Techniques for Web Crawling\n\n\n2 min\n\n\nwith R and Python\n\n\n\nJun 20, 2023\n\n\n\n\n\n\n\n\n\n\n\n\nRun R code In the Browser\n\n\n2 min\n\n\nwithout the need for an R server to execute the code\n\n\n\nJun 10, 2023\n\n\n\n\n\n\n\n\n\n\n\n\nCausal Inference Practical Methods\n\n\n16 min\n\n\nwith R\n\n\n\nMay 15, 2023\n\n\n\n\n\n\n\n\n\n\n\n\nSentence Level Sentiment Analysis\n\n\n4 min\n\n\nby calling Python in R\n\n\n\nFeb 20, 2023\n\n\n\n\n\n\n\n\nNo matching items"
+  },
+  {
+    "objectID": "blog/sentiment analysis/index.html",
+    "href": "blog/sentiment analysis/index.html",
+    "title": "Sentence Level Sentiment Analysis",
+    "section": "",
+    "text": "Text analysis enables the identification and extraction of sentiment information from text. By leveraging tools such as asent, sentimentr, and basic sentiment lexicons, it is possible to construct a sentiment classifier that can estimate whether the underlying sentiment of a given text is positive, negative, or neutral."
+  },
+  {
+    "objectID": "blog/sentiment analysis/index.html#install-python-packages",
+    "href": "blog/sentiment analysis/index.html#install-python-packages",
+    "title": "Sentence Level Sentiment Analysis",
+    "section": "install python packages:",
+    "text": "install python packages:\nCall python in R.\n\nCodereticulate::use_python(\"C:\\\\Users\\\\xhuangcb\\\\anaconda3\\\\envs\\\\pytorch_gpu\\\\python.exe\")  # call python in R\n\n\nThen:\n\n\n\n\nTpying\nTo install\n\n\n\n!pip install spacy\nspacy\n\n\n!pip install asent\nasent\n\n\n!pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.5.0/en_core_web_lg-3.5.0-py3-none-any.whl\npre-trained model"
+  },
+  {
+    "objectID": "blog/sentiment analysis/index.html#from-oop-to-fp",
+    "href": "blog/sentiment analysis/index.html#from-oop-to-fp",
+    "title": "Sentence Level Sentiment Analysis",
+    "section": "from OOP to FP",
+    "text": "from OOP to FP\nPython is an object-oriented programming (OOP) language, and it is possible to convert Python classes into functions in R, which mainly support functional programming (FP).\n\nCodespacy &lt;- reticulate::import(\"spacy\")  # load spacy\n\nasent &lt;- reticulate::import(\"asent\")  # load asent\n\nnlp &lt;- spacy$load(\"en_core_web_lg\")  # load pre-trained model\n\nnlp$add_pipe(\"asent_en_v1\")  # add asent pipe\n\n&lt;asent.component.Asent object at 0x000002A191E53970&gt;\n\nCodenlp_safe &lt;- possibly(.f = nlp, otherwise = \"error!\")  # error handling\n\nget_polarity &lt;- nlp_safe(\"sentiment\")$get_extension(\"polarity\")[[3]]  # load python function\n\nget_sentiment_asent &lt;- \\(x) {\n    result &lt;- nlp_safe(x) %&gt;%\n        get_polarity() %&gt;%\n        print() %&gt;%\n        capture.output() %&gt;%\n        str_extract_all(\"-?0\\\\.\\\\d+\") %&gt;%\n        unlist() %&gt;%\n        as.numeric()\n\n    names(result) &lt;- c(\"neg\", \"neu\", \"pos\", \"compound\")\n\n    return(result)\n}\n\n\nTry our function:\n\nCodeget_sentiment_asent(data$cleaned_text[1])\n\n     neg      neu      pos compound \n  0.0440   0.6350   0.0710   0.1235 \n\n\nIt is an analytical process of asent:"
+  },
+  {
+    "objectID": "data/index.html",
+    "href": "data/index.html",
+    "title": "China Dataverse",
+    "section": "",
+    "text": "Order By\n       Default\n         \n          Modified - Oldest\n        \n         \n          Modified - Newest\n        \n     \n  \n\n\n\n\n\n\n\nTitle\n\n\nVolume\n\n\nModified\n\n\n\n\n\n\n\n\n\nData on law enforcement by Chinese police\n\n\n12 Million (2017 ~ 2023)\n\n\nAug 31, 2023\n\n\n\n\n\nNo matching items\n\n\n\n\nSearch Engine\nA web app powered by \n\n\n\n\n\n\n\nEmbed Iframe with Background Color and Dark Mode"
+  },
+  {
+    "objectID": "project/sentimentRPy/index.html",
+    "href": "project/sentimentRPy/index.html",
+    "title": "sentimentRPy Package",
+    "section": "",
+    "text": "An R package for sentence-level and word-level sentiment analysis. Support vectorization, multithreading and is robust to errors."
+  },
+  {
+    "objectID": "project/sentimentRPy/index.html#overview",
+    "href": "project/sentimentRPy/index.html#overview",
+    "title": "sentimentRPy Package",
+    "section": "",
+    "text": "An R package for sentence-level and word-level sentiment analysis. Support vectorization, multithreading and is robust to errors."
+  },
+  {
+    "objectID": "project/sentimentRPy/index.html#installation",
+    "href": "project/sentimentRPy/index.html#installation",
+    "title": "sentimentRPy Package",
+    "section": "Installation",
+    "text": "Installation\n\nremotes::install_github(\"xinzhuohkust/sentimentRPy\")"
+  },
+  {
+    "objectID": "project/sentimentRPy/index.html#usage",
+    "href": "project/sentimentRPy/index.html#usage",
+    "title": "sentimentRPy Package",
+    "section": "Usage",
+    "text": "Usage\nR\nword level\n\nsentimentRPy::get_sentimentR(\n    text = c(\"I am happy\", \"I am sad\"),\n    method = \"word\"\n    )\n\n\n  \n\n\n\nSentence level which will take the contrast and negation into account. sd will be provided when there are multiple sentences. The underlying function is from sentimentr.\n\nsentimentRPy::get_sentimentR(\n    text = \"I am not happy, but I am also not unhappy.\",\n    method = \"sentence\"\n    )\n\n\n  \n\n\n\nMultithreading model using all available CPU cores.\n\nsentimentRPy::get_sentimentR(\n    text = a large corpus,\n    method = \"sentence\", # or word\n    multisession = TRUE\n    )\n\nPython\nPython setup\n\nasent &lt;- sentimentRPy::asent_setup(python = \"C:\\\\Users\\\\xhuangcb\\\\anaconda3\\\\envs\\\\pytorch_gpu\\\\python.exe\")\n\nSentence level sentiment analysis using asent in Python\n\nsentimentRPy::get_sentimentPy(\"I am not happy, but I am also not unhappy.\")"
+  },
+  {
+    "objectID": "project/index.html",
+    "href": "project/index.html",
+    "title": "Packages",
+    "section": "",
+    "text": "Packages\n\n\n   \n     \n     \n       Order By\n       Default\n         \n          Date - Oldest\n        \n         \n          Date - Newest\n        \n     \n  \n\n\n\n\n\n\n\nName\n\n\nDescription\n\n\nDate\n\n\n\n\n\n\n\n\n\nGeocoding\n\n\nAn R package that provides geocoding, reverse geocoding, route planning, and advanced geographic visualization. Moreover, this package provides economic and social information such as nighttime lights and population based on geographic coding.\n\n\nMay 26, 2023\n\n\n\n\n\n\n\nRconnectPy\n\n\nAn R package for easy installation and importing of python modules.\n\n\nMay 30, 2023\n\n\n\n\n\n\n\nsentimentRPy\n\n\nAn R package for sentence-level and word-level sentiment analysis.\n\n\nJun 1, 2023\n\n\n\n\n\nNo matching items"
+  },
+  {
+    "objectID": "data/penality/index.html",
+    "href": "data/penality/index.html",
+    "title": "Data on law enforcement by Chinese police",
+    "section": "",
+    "text": "Data Compliance\n\n\n\nAll of the data is publicly available and any sensitive personal inforamtion has been removed. This data is solely for my research purposes."
+  },
+  {
+    "objectID": "data/penality/index.html#overview",
+    "href": "data/penality/index.html#overview",
+    "title": "Data on law enforcement by Chinese police",
+    "section": "Overview",
+    "text": "Overview\n\nElite challenges and mass uprisings pose significant threats to authoritarian regimes (Svolik 2012). State coercion has been crucial in addressing the uncertainty induced by these issues (Cai and Chen 2022). This dataset concentrates on the potent instruments of state coercion in China, specifically administrative punishment, to explore various topics related to Chinese politics (Stern and Hassid 2012).\n\nSvolik, Milan W. 2012. The Politics of Authoritarian Rule. Cambridge University Press. https://doi.org/10.1017/CBO9781139176040.\n\nCai, Yongshun, and Chih-Jou Jay Chen. 2022. State and Social Protests in China. 1st ed. Cambridge University Press. https://doi.org/10.1017/9781108982924.\n\nStern, Rachel E., and Jonathan Hassid. 2012. “Amplifying Silence: Uncertainty and Control Parables in Contemporary China.” Comparative Political Studies 45 (10): 1230–54. https://doi.org/10.1177/0010414011434295.\nThe author  has crawled over 10 million data points from various apps and websites in China. Using httr2 and V8, data collection can be made easier with functional programming, allowing for seamless multithreading and efficient error handling."
+  },
+  {
+    "objectID": "data/penality/index.html#data-distribution",
+    "href": "data/penality/index.html#data-distribution",
+    "title": "Data on law enforcement by Chinese police",
+    "section": "Data distribution",
+    "text": "Data distribution"
+  },
+  {
+    "objectID": "cv/index.html",
+    "href": "cv/index.html",
+    "title": "Xinzhuo Huang",
+    "section": "",
+    "text": "Xinzhuo Huang"
+  },
+  {
+    "objectID": "cv/index.html#education",
+    "href": "cv/index.html#education",
+    "title": "Xinzhuo Huang",
+    "section": "Education",
+    "text": "Education\n\nMPhil in Social Science, currently enrolled\nHong Kong University of Science and Technology, HongKong\nUnder the guidance of Prof. Cai Yongshun and :Prof.ZhangHan\nFull Scholarships\nMSc in Global China Studies, 2022\nHong Kong University of Science and Technology, HongKong\nDean’s Award\nLLB in Political Science and Law, 2020\nEast China University of Political Science and Law, China\nOutstanding Graduation Thesis Award\nOutstanding Graduate Award"
+  },
+  {
+    "objectID": "cv/index.html#working-paper",
+    "href": "cv/index.html#working-paper",
+    "title": "Xinzhuo Huang",
+    "section": "Working Paper",
+    "text": "Working Paper\n\nThe Temporal and Spatial Heterogeneity of State Repression: Evidence from Causal Tree\n\nUtilized a causal tree to estimate heterogeneous effects.\n\n\nUpward Targeting and Authoritarian Responsiveness in China, In Progress\n\nCreated Word Embeddings based on massive peition data in China."
+  },
+  {
+    "objectID": "cv/index.html#research-project",
+    "href": "cv/index.html#research-project",
+    "title": "Xinzhuo Huang",
+    "section": "Research Project",
+    "text": "Research Project\n\nHow Global Media React to Scandal in China, In Progress\n\nCo-author with Prof Jean Hong from University of Michigan and Prof Yusaku Horiuchi from Dartmouth College.\n\n\nPropaganda and Petition in China’s Zero-Covid Campaign, In Progress\n\nCo-author with Dr Hongshen Zhu from University of Pennsylvania and Prof Haibing Yan from ECUPL."
+  },
+  {
+    "objectID": "cv/index.html#experience",
+    "href": "cv/index.html#experience",
+    "title": "Xinzhuo Huang",
+    "section": "Experience",
+    "text": "Experience\n\nReseach Assistant for Prof Jean Hong from University of Michigan, 2022 \nReseach Assistant for Prof Yimin Lin from HKUST, 2022~2023"
+  },
+  {
+    "objectID": "cv/index.html#programming",
+    "href": "cv/index.html#programming",
+    "title": "Xinzhuo Huang",
+    "section": "Programming",
+    "text": "Programming\n  - R, Advanced - Quarto/Rmarkdown, Advanced - Python, Advanced - SQL, Beginner - Julia, Beginner - Javascript, Beginner"
+  },
+  {
+    "objectID": "project/Geocoding/index.html",
+    "href": "project/Geocoding/index.html",
+    "title": "Geocoding R Package",
+    "section": "",
+    "text": "The Geocoding package provides functions for geocoding Chinese addresses.\nThe package is designed for researchers, analysts, and other users who need to work with Chinese address data."
+  },
+  {
+    "objectID": "project/Geocoding/index.html#overview",
+    "href": "project/Geocoding/index.html#overview",
+    "title": "Geocoding R Package",
+    "section": "",
+    "text": "The Geocoding package provides functions for geocoding Chinese addresses.\nThe package is designed for researchers, analysts, and other users who need to work with Chinese address data."
+  },
+  {
+    "objectID": "project/Geocoding/index.html#installation",
+    "href": "project/Geocoding/index.html#installation",
+    "title": "Geocoding R Package",
+    "section": "Installation",
+    "text": "Installation\n\nremotes::install_github(\"xinzhuohkust/Geocoding\")"
+  },
+  {
+    "objectID": "project/Geocoding/index.html#usage",
+    "href": "project/Geocoding/index.html#usage",
+    "title": "Geocoding R Package",
+    "section": "Usage",
+    "text": "Usage\ngeocoding\n\nGeocoding::get_MCT(\"国家信访局\") |&gt;\n    Geocoding::convert_MCT()\n\n\n\n\n\nlongitude\nlatitude\n\n\n116.358\n39.919\n\n\n\n\nreverse geocoding\n\nGeocoding::get_MCT(\"国家信访局\") |&gt;\n    Geocoding::get_admin_info(uid = TRUE)\n\n\n\n\n\ndistrict\ncity\nprovince\nuid\n\n\n西城区\n北京市\n北京市\n871eebeac92224a8336212da\n\n\n\n\ntrain planning\n\nGeocoding::train_plan(\n  origin = Geocoding::get_MCT(\"安徽省六安市裕安区\") |&gt; Geocoding::convert_MCT(),\n  destination = Geocoding::get_MCT(\"国家信访局\") |&gt; Geocoding::convert_MCT(),\n  sleep = 0.5,\n  ak = \"your ak\"\n)\n\n\n\n\n\nstarting city\ndestination city\nduration\nprice\n\n\n\n六安市\n北京市\n7.850\n483.5\n\n\n六安市\n北京市\n6.467\n457.0\n\n\n六安市\n北京市\n11.117\n222.5"
+  },
+  {
+    "objectID": "project/Geocoding/index.html#visualization",
+    "href": "project/Geocoding/index.html#visualization",
+    "title": "Geocoding R Package",
+    "section": "Visualization",
+    "text": "Visualization\nggplot2 integration\n\nGeocoding::plot_geocoding(\n  data = \"night\",\n  label = \"jilin\",\n  year = \"2022\"\n)\n\n\ninteractive map and 3D map (coming soon)"
+  },
+  {
+    "objectID": "project/RconnectPy/index.html",
+    "href": "project/RconnectPy/index.html",
+    "title": "RconnectPy Package",
+    "section": "",
+    "text": "An R package for easy installation and importing of python modules."
+  },
+  {
+    "objectID": "project/RconnectPy/index.html#overview",
+    "href": "project/RconnectPy/index.html#overview",
+    "title": "RconnectPy Package",
+    "section": "",
+    "text": "An R package for easy installation and importing of python modules."
+  },
+  {
+    "objectID": "project/RconnectPy/index.html#installation",
+    "href": "project/RconnectPy/index.html#installation",
+    "title": "RconnectPy Package",
+    "section": "Installation",
+    "text": "Installation\n\nremotes::install_github(\"xinzhuohkust/RconnectPy\")"
+  },
+  {
+    "objectID": "project/RconnectPy/index.html#usage",
+    "href": "project/RconnectPy/index.html#usage",
+    "title": "RconnectPy Package",
+    "section": "Usage",
+    "text": "Usage\n\nRconnectPy::where_py()\n\n\nRconnectPy::install_py_packages(python, \"pandas\")\n\n\npackages &lt;- RconnectPy::import_py_packages(\"pandas\", \"selenium\", \"asent\")"
+  },
+  {
+    "objectID": "blog/marginal_effects/index.html",
+    "href": "blog/marginal_effects/index.html",
+    "title": "Marginal Effects",
+    "section": "",
+    "text": "Let’s replicate the tutorial by Clay Ford on marginal effects with the tidy data priciple."
+  },
+  {
+    "objectID": "research/index.html",
+    "href": "research/index.html",
+    "title": "Research",
+    "section": "",
+    "text": "My research spans public policy, nonprofit management, political science, and international relations. I study human rights and international nonprofit management and I focus on authoritarian regulation of civil society and international NGO responses to administrative crackdown. I also research causal inference methods, particularly using panel data."
+  },
+  {
+    "objectID": "research/index.html#journal-articles",
+    "href": "research/index.html#journal-articles",
+    "title": "Research",
+    "section": "Journal articles",
+    "text": "Journal articles\n\n\n\n\n        \n            \n                Suparna Chaudhry, Marc Dotson, and Andrew Heiss, “Who Cares About Crackdowns? Exploring the Role of Trust in Individual Philanthropy,” Global Policy 12, no. S5 (July 2021): 45–58, doi: 10.1111/1758-5899.12984\n            \n            \n                    \n                            Philanthropy\n                        \n                    \n                            Experiment\n                        \n                    \n                            Conjoint analysis\n                        \n                    \n                            Simulation\n                        \n                    \n                            Bayes\n                        \n                    \n                            INGOs\n                        \n            \n            \n                When seeing crackdown,\n                 / people with low social trust\n                 / are fairweather friends.\n            \n            \n                \n                    \n                        \n                             Full details »\n                        \n                    \n                    \n                        \n                             Preprint\n                        \n                    \n                    \n                        \n                             Final version\n                        \n                    \n                    \n                        \n                             Code\n                        \n                    \n                    \n                        \n                             Data\n                        \n                    \n                    \n                        \n                             Add to Zotero\n                        \n                    \n                \n            \n        \n\n\n\nNo matching items"
+  },
+  {
+    "objectID": "research/index.html#working-papers",
+    "href": "research/index.html#working-papers",
+    "title": "Research",
+    "section": "Working papers",
+    "text": "Working papers"
+  },
+  {
+    "objectID": "research/index.html#book-chapters",
+    "href": "research/index.html#book-chapters",
+    "title": "Research",
+    "section": "Book chapters",
+    "text": "Book chapters"
+  },
+  {
+    "objectID": "research/index.html#reviews",
+    "href": "research/index.html#reviews",
+    "title": "Research",
+    "section": "Reviews",
+    "text": "Reviews"
+  },
+  {
+    "objectID": "research/index.html#dormant-working-papers",
+    "href": "research/index.html#dormant-working-papers",
+    "title": "Research",
+    "section": "Dormant working papers",
+    "text": "Dormant working papers"
+  },
+  {
+    "objectID": "research/index.html#selected-seminar-papers",
+    "href": "research/index.html#selected-seminar-papers",
+    "title": "Research",
+    "section": "Selected seminar papers",
+    "text": "Selected seminar papers"
+  },
+  {
+    "objectID": "research/index.html#translations",
+    "href": "research/index.html#translations",
+    "title": "Research",
+    "section": "Translations",
+    "text": "Translations"
+  },
+  {
+    "objectID": "research/articles/index.html#important-links",
+    "href": "research/articles/index.html#important-links",
+    "title": "Who Cares About Crackdowns? Exploring the Role of Trust in Individual Philanthropy",
+    "section": "Important links",
+    "text": "Important links\n\nPaper (preprint)\nAppendix (preprint)\nStatistical analysis notebook\nGitHub repository\nExperiment preregistration (research question #2)"
+  },
+  {
+    "objectID": "research/articles/index.html#abstract",
+    "href": "research/articles/index.html#abstract",
+    "title": "Who Cares About Crackdowns? Exploring the Role of Trust in Individual Philanthropy",
+    "section": "Abstract",
+    "text": "Abstract\nThe phenomenon of closing civic space has adversely impacted INGO funding. We argue that individual private donors can be important in sustaining the operations of INGOs working in repressive contexts. Individual donors do not use the same performance-based metrics as official aid donors. Rather, trust can be an important component of individual donor support for nonprofits working towards difficult goals. How does trust in charitable organizations influence individuals’ preferences to donate, especially when these groups face crackdown? Using a simulated market for philanthropic donations based on data from a nationally representative sample of individuals in the United States who regularly donate to charity, we find that trust in INGOs matters substantially in shaping donor preferences. Donor profiles with high levels of social trust are likely to donate to INGOs with friendly relationships with host governments. This support holds steady if INGOs face criticism or crackdown. In contrast, donor profiles with lower levels of social trust prefer to donate to organizations that do not face criticism or crackdown abroad. The global crackdown on NGOs may thus possibly sour NGOs’ least trusting individual donors. Our findings have practical implications for INGOs raising funds from individuals amid closing civic space."
+  },
+  {
+    "objectID": "research/articles/index.html#important-figure",
+    "href": "research/articles/index.html#important-figure",
+    "title": "Who Cares About Crackdowns? Exploring the Role of Trust in Individual Philanthropy",
+    "section": "Important figure",
+    "text": "Important figure\nFigure 4: Average predicted donation market shares across all personas, segmented by persona public affairs knowledge, political ideology, and social trust across different NGO–host government relationships\n\n\n\nFigure 4: Average predicted donation market shares across all personas, segmented by persona public affairs knowledge, political ideology, and social trust across different NGO–host government relationships"
+  },
+  {
+    "objectID": "research/articles/index.html#data-and-code",
+    "href": "research/articles/index.html#data-and-code",
+    "title": "Who Cares About Crackdowns? Exploring the Role of Trust in Individual Philanthropy",
+    "section": "Data and code",
+    "text": "Data and code\nThe project is reproducible with R code available at GitHub. Follow the instructions there to install all supporting files and R packages.\nThis project includes the following data files:\n\ndata/raw_data/final_data.rds: Original results from the Qualtrics survey. This is hosted at OSF because of its size. Running targets::tar_make(survey_results_file) will download the .rds file from OSF and place it in data/raw_data. The code for cleaning and processing this data is part of a separate project, “Why Donors Donate”.\ndata/derived_data/survey_results.csv: CSV version of the survey data.\ndata/derived_data/survey_results.yaml: YAML metadata describing the syntax of the survey data.\ndata/raw_data/posterior_draws/public_political_social_charity_demo.rds: Gamma (Γ) coefficients from our multilevel Bayesian model. This is hosted at OSF because of its size. Running targets::tar_make(gamma_draws_file) will download the .rds file from OSF and place it in data/raw_data/posterior_draws. The code for running this model is part of a separate project, “Why Donors Donate”.\ndata/raw_data/Market Simulator Version 01.xlsx: An interactive Excel version of the market simulator to help demonstrate the intuition behind all the moving parts of the simulation."
+  },
+  {
+    "objectID": "research/articles/index.html#citation",
+    "href": "research/articles/index.html#citation",
+    "title": "Who Cares About Crackdowns? Exploring the Role of Trust in Individual Philanthropy",
+    "section": "Citation",
+    "text": "Citation\n\n Add to Zotero \n\n@article{ChaudhryDotsonHeiss:2021,\n    Author = {Suparna Chaudhry and Marc Dotson and Andrew Heiss},\n    Doi = {10.1111/1758-5899.12984},\n    Journal = {Global Policy},\n    Month = {7},\n    Number = {S5},\n    Pages = {45--58},\n    Title = {Who Cares About Crackdowns? Exploring the Role of Trust in Individual Philanthropy},\n    Volume = {12},\n    Year = {2021}}"
+  },
+  {
+    "objectID": "blog/cookbook/index.html",
+    "href": "blog/cookbook/index.html",
+    "title": "ggplot2 Cookbook",
+    "section": "",
+    "text": "Color palette\n\n      Fonts"
+  },
+  {
+    "objectID": "blog/cookbook/index.html#load-fonts-into-r",
+    "href": "blog/cookbook/index.html#load-fonts-into-r",
+    "title": "ggplot2 Cookbook",
+    "section": "Load fonts into R",
+    "text": "Load fonts into R\n\nCodedata &lt;- tibble(\n    result = c(rnorm(100, mean = 0, sd = 1), rnorm(100, mean = 2, sd = 1)),\n    treatment = c(rep(0, 100), rep(1, 100))\n)\n\n\n\nCodedata %&gt;% \n    ggplot() +\n    geom_histogram(aes(result, fill = as.factor(treatment)), alpha = 0.5) +\n    #geom_histogram(aes(result), alpha = 0.5, filter(data, treatment == 0)) +\n    #geom_histogram(aes(result), filter(data, treatment == 1)) +\n    scale_fill_manual(values = c(\"#66a182\", \"#edae49\"))\n\n\n\nCodemtcars %&gt;% \n    mutate(\n        mpg = mpg * 1000,\n        mpg_semi = map_dbl(mpg, ~ .x * sample(c(0.3, 0.7), 1))\n    ) %&gt;% \n    ggplot() +\n    geom_col(aes(x = as_factor(cyl), y = mpg, alpha = 0.5)) +\n    geom_col(aes(x = as_factor(cyl), y = mpg_semi)) +\n    geom_text(aes(x = as_factor(cyl), y = mpg_semi, label = mpg_semi))\n    scale_y_continuous(labels = label_number_si(), breaks = breaks_width(100000), name = \"Y label\") +\n    theme(axis.text = element_text(family = \"techmono\", size = 10))"
+  },
+  {
+    "objectID": "blog/marginal_effects/index.html#fonts",
+    "href": "blog/marginal_effects/index.html#fonts",
+    "title": "Marginal Effects",
+    "section": "Fonts",
+    "text": "Fonts\n\nCodefont_add_google(\"Share Tech Mono\", \"techmono\")\n\nfont_add(\"Proxima\", \"E:/OneDrive - HKUST Connect/xinzhuo_personal_website/fonts/Proxima Nova Extrabold.ttf\")\n\nfont_add(\"Proxima Head\", \"E:/OneDrive - HKUST Connect/xinzhuo_personal_website/fonts/Publico Headline Web Bold.ttf\")\n\nshowtext_auto()"
+  },
+  {
+    "objectID": "blog/marginal_effects/index.html#color-palette",
+    "href": "blog/marginal_effects/index.html#color-palette",
+    "title": "Marginal Effects",
+    "section": "Color palette",
+    "text": "Color palette"
+  },
+  {
+    "objectID": "blog/marginal_effects/index.html#realistic-data",
+    "href": "blog/marginal_effects/index.html#realistic-data",
+    "title": "Marginal Effects",
+    "section": "Realistic data",
+    "text": "Realistic data\n\nCodereplication &lt;- rio::import(\"http://www.stata-press.com/data/r12/nhanes2f.dta\", setclass = \"tibble\") %&gt;%\n    select(diabetes, black, female, age) %&gt;%\n    filter(complete.cases(.)) %&gt;%\n    mutate(across(c(\"black\", \"female\"), as.factor))\n\nmodel &lt;- glm(\n    diabetes ~ black + female + age,\n    data = replication,\n    family = binomial\n)\n\nmodel %&gt;%\n    tidy() %&gt;%\n    mutate(estimate = map2_chr(p.value, estimate, star)) %&gt;% \n    print_kable()\n\n\n\nTable 1: regression table\n\n\nEstimate\nSE\nStatistic\n\n\n\n(Intercept)\n-6.405 ***\n0.237\n-27.002\n\n\nblack1\n0.718 ***\n0.127\n5.661\n\n\nfemale1\n0.155\n0.094\n1.639\n\n\nage\n0.059 ***\n0.004\n15.929\n\n\n\n\n\n\n\n\n\nCodeggpredict(model, variables = c(\"black\", \"female\"))  %&gt;% \n    pluck(\"age\") %&gt;% \n    ggplot(aes(x, predicted)) +\n    geom_point(stroke = 1, shape = 21, fill = \"#ffffff\", colour = \"#d1495b\", size = 3) +\n    geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.6, colour = \"#2e4057\") +\n    theme_minimal() +\n    theme(\n        plot.background = element_rect(fill = \"#ffffff\", color = NA),\n        panel.grid.minor = element_blank(),\n        axis.title = element_text(family = \"Proxima Head\"),\n        axis.text = element_text(family = \"Proxima Head\"),\n        panel.grid.major = element_line(linewidth = 1, color = \"#E0E0E0\", linetype = \"dashed\")\n    )\n\nData were 'prettified'. Consider using `terms=\"age [all]\"` to get smooth\n  plots."
+  },
+  {
+    "objectID": "blog/reverse_js/index.html",
+    "href": "blog/reverse_js/index.html",
+    "title": "Reverse Engineering for China Judgement Online",
+    "section": "",
+    "text": "Real-world sample: China Judgement Online\nAssuming we have captured network traffic using Fiddler and discovered that the data is encrypted, we have also determined the encryption method through reverse engineering with JavaScript. How can we utilize JS within R to decrypt the data directly?\nEncrypted data:\n\nCodeencrypted_string &lt;- '{\"code\":1,\"description\":null,\"secretKey\":\"l6AxUMYekJfQgwKn6jWY4gKD\",\"result\":\"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\",\"success\":true}'\n\n\nJavaScript code for decryption:\n\nCodeconst CryptoJS = require(\"C:/node_global/node_modules/crypto-js\");\nconst c = key;\nconst decrypt = function(b, c){\n    result = CryptoJS.enc.Utf8.stringify(CryptoJS.TripleDES.decrypt(b, CryptoJS.enc.Utf8.parse(c), {\n        iv:CryptoJS.enc.Utf8.parse($.Website.formDate(new Date(), \"yyyyMMdd\")),\n        mode:CryptoJS.mode.CBC,\n        padding: CryptoJS.pad.Pkcs7\n    })).toString()\n    return(result)\n}\n\n\nLet’s use the jsonlite to parse JSON data and then invoke JavaScript to decrypt the parsed data using V8.\n\nCoderesult &lt;- encrypted_string %&gt;%\n    fromJSON() %&gt;%\n    pluck(\"result\")\n\nsecretKey &lt;- encrypted_string %&gt;%\n    fromJSON() %&gt;%\n    pluck(\"secretKey\")\n\n\nDecryption by calling JavaScript in R:\n\nCodeengine &lt;- v8()\n\nengine$eval(readLines(\"C:/node_global/node_modules/crypto-js/crypto-js.js\"))\n\njscode &lt;- \"const decrypt = function(b, c, date){\n    result = CryptoJS.enc.Utf8.stringify(CryptoJS.TripleDES.decrypt(b, CryptoJS.enc.Utf8.parse(c), {\n        iv:CryptoJS.enc.Utf8.parse(date),\n        mode:CryptoJS.mode.CBC,\n        padding: CryptoJS.pad.Pkcs7\n    })).toString()\n    return(result)\n}\"\n\nengine$eval(jscode)\n\nengine$call(\"decrypt\", result, secretKey, \"20220622\") %&gt;%\n    fromJSON() %&gt;%\n    pluck(\"queryResult\", \"resultList\") %&gt;%\n    tibble() %&gt;%\n    head(1) %&gt;%\n    pull(`26`)\n\n[1] \"本院经审查认为，本案系当事人申请再审案件，应当依据《中华人民共和国民事诉讼法》第二百零七条的规定对再审申请人汇杰公司的申请再审理由进行审查。本案审查的主要问题是，本案是否属于人民法院民事诉讼的受理范围。\\n第一，本案争议的黄田农场强制拆除行为系其受十三师有关行政主管部门委托施行的行政行为，不属于民事诉讼的受理范围。首先，2016年12月29日新疆生产建设兵团农业建设第十三师办公室（以下简称十三师办公室）下发《关于对十三师工业企业实施关停的通知》（师办发〔2016〕334号），因环保违法违规、污染物排放超标且治理无望对汇杰公司实施关停，十三师师国土局亦于2017年8月22日向汇杰公司送达了《责令改正违法行为通知书》，责令汇杰公司立即停工并在3日内自行拆除建设的房屋，恢复土地原状。2017年8月24日十三师办公室向兵团保障中央环境督查协调联络工作组&lt;span style=\\\"color:red\\\"&gt;信访&lt;/span&gt;督办组反馈的整改措施载明，“由黄田农场成立农场环保整治领导小组……对拒不执行环保整改要求的企业一律采取强制停产和强制拆除设施”。上述通知书和整改措施均为黄田农场强制拆除汇杰公司煤场的地上建筑物、构筑物、选矿设备等设施的行为依据，黄田农场的行为是在中央环境保护督查组的监督和十三师有关行政主管部门的主导下，为管理辖区内国土资源、保护生态环境、贯彻落实国家环境保护决策部署进行的集中整治，是执行十三师办公室、十三师国土局有关行政决定的行为，内容上具有履行行政管理职责的性质。其次，黄田农场依据上述决定组织人员强制拆除汇杰公司煤场的地上建筑物、构筑物、选矿设备等设施，系实现公共环保目标的需要，受益主体惠及社会公众，具有维护公共利益的性质，并非出于企业法人利益而作出的民事侵权行为。司法实践中，人民法院认定是否存在行政委托关系，一是要看行为的内容是否具有履行行政管理职责的性质；二是要看受益主体是否惠及社会公众，具有维护公共利益的性质，两者同时具备即属于行政委托，并不以行政机关以书面或口头明确表示委托为必要条件。综上，黄田农场的强制拆除行为虽无行政机关以书面文件明确表示委托授权，但足以认定其行为系受行政机关委托实施，存在事实上的行政委托关系。汇杰公司认为原裁定认定黄田农场强拆汇杰公司煤场系执行国家有关环保法律、政策的行为缺乏证据证明的再审理由不成立，本院不予支持。汇杰公司认为黄田农场依据行政委托而实施的强制拆除行为给其造成财产损失，不属于人民法院民事诉讼的受理范围，其可以通过其他途径进行救济。\\n第二，汇杰公司申请再审提出其与黄田农场存在土地租赁关系而主张本案属于民事诉讼受案范围的理由不能成立。根据原审法院查明的事实，2012年4月28日汇杰公司与农十三师黄田农场国有资产经营有限责任公司签订《土地租赁合同》，租赁合同的相对人为农十三师黄田农场国有资产经营有限责任公司，而非黄田农场，汇杰公司与黄田农场不存在民事合同法律关系，且该租赁合同关系和本案的具体行政行为属于不同的法律关系。《中华人民共和国民事诉讼法》第三条规定：“人民法院受理公民之间、法人之间、其他组织之间以及他们相互之间因财产关系和人身关系提起的民事诉讼，适用本法的规定。”第一百二十二条规定：“起诉必须符合下列条件：（一）原告是与本案有直接利害关系的公民、法人和其他组织；（二）有明确的被告；（三）有具体的诉讼请求和事实、理由；（四）属于人民法院受理民事诉讼的范围和受诉人民法院管辖。”本案中，因黄田农场系受行政机关委托实施强制拆除行为，案涉纠纷不属于平等民事主体之间的民事权益纠纷，不属于人民法院民事诉讼的受理范围。原审裁定驳回汇杰公司的起诉，并无不当。汇杰公司申请再审提出其与黄田农场存在土地租赁关系而主张本案属于民事诉讼受案范围的理由不能成立，本院不予支持。至于汇杰公司主张的二审法院两次裁判结果不同，不属于《中华人民共和国民事诉讼法》第二百零七条规定的再审审查情形，本院不予审查。\\n综上，汇杰公司的再审申请不符合《中华人民共和国民事诉讼法》第二百零七条规定的情形。依照《中华人民共和国民事诉讼法》第二百一十一条第一款，《最高人民法院关于适用〈中华人民共和国民事诉讼法〉的解释》第三百九十三条第二款规定，裁定如下\""
+  },
+  {
+    "objectID": "blog/index.html#web-crawling",
+    "href": "blog/index.html#web-crawling",
+    "title": "Social Science",
+    "section": "",
+    "text": "Order By\n       Default\n         \n          Date - Oldest\n        \n         \n          Date - Newest\n        \n     \n  \n\n\n\n\n\n\n\n\n\n2 min\n\n\nby calling JavaScript in R\n\n\n\nJun 22, 2023\n\n\n\n\n\n\n\n\n\n\n\n\n\n3 min\n\n\nwith R and Python\n\n\n\nJun 14, 2023\n\n\n\n\n\n\n\n\n\n\n\n\n\n2 min\n\n\nwithout the need for an R server to execute the code\n\n\n\nJun 10, 2023\n\n\n\n\n\n\n\n\n\n\n\n\n\n16 min\n\n\nwith R\n\n\n\nMay 15, 2023\n\n\n\n\n\n\n\n\n\n\n\n\n\n4 min\n\n\nby calling Python in R\n\n\n\nFeb 20, 2023\n\n\n\n\n\n\n\n\nNo matching items"
+  },
+  {
+    "objectID": "blog/index.html#causal-inference",
+    "href": "blog/index.html#causal-inference",
+    "title": "Social Science",
+    "section": "Causal Inference",
+    "text": "Causal Inference"
+  },
+  {
+    "objectID": "project/packages/Geocoding/index.html",
+    "href": "project/packages/Geocoding/index.html",
+    "title": "Geocoding",
+    "section": "",
+    "text": "The Geocoding package provides functions for geocoding Chinese addresses.\nThe package is designed for researchers, analysts, and other users who need to work with Chinese address data."
+  },
+  {
+    "objectID": "project/packages/Geocoding/index.html#overview",
+    "href": "project/packages/Geocoding/index.html#overview",
+    "title": "Geocoding",
+    "section": "",
+    "text": "The Geocoding package provides functions for geocoding Chinese addresses.\nThe package is designed for researchers, analysts, and other users who need to work with Chinese address data."
+  },
+  {
+    "objectID": "project/packages/Geocoding/index.html#installation",
+    "href": "project/packages/Geocoding/index.html#installation",
+    "title": "Geocoding",
+    "section": "Installation",
+    "text": "Installation\n\nremotes::install_github(\"xinzhuohkust/Geocoding\")"
+  },
+  {
+    "objectID": "project/packages/Geocoding/index.html#usage",
+    "href": "project/packages/Geocoding/index.html#usage",
+    "title": "Geocoding",
+    "section": "Usage",
+    "text": "Usage\ngeocoding\n\nGeocoding::get_MCT(\"国家信访局\") |&gt;\n    Geocoding::convert_MCT()\n\n\n\n\n\nlongitude\nlatitude\n\n\n116.358\n39.919\n\n\n\n\nreverse geocoding\n\nGeocoding::get_MCT(\"国家信访局\") |&gt;\n    Geocoding::get_admin_info(uid = TRUE)\n\n\n\n\n\ndistrict\ncity\nprovince\nuid\n\n\n西城区\n北京市\n北京市\n871eebeac92224a8336212da\n\n\n\n\ntrain planning\n\nGeocoding::train_plan(origin = Geocoding::get_MCT(\"安徽省六安市裕安区\") |&gt;\n    Geocoding::convert_MCT(), destination = Geocoding::get_MCT(\"国家信访局\") |&gt;\n    Geocoding::convert_MCT(), sleep = 0.5, ak = \"your ak\")\n\n\n\n\n\nstarting city\ndestination city\nduration\nprice\n\n\n\n六安市\n北京市\n7.850\n483.5\n\n\n六安市\n北京市\n6.467\n457.0\n\n\n六安市\n北京市\n11.117\n222.5"
+  },
+  {
+    "objectID": "project/packages/Geocoding/index.html#visualization",
+    "href": "project/packages/Geocoding/index.html#visualization",
+    "title": "Geocoding",
+    "section": "Visualization",
+    "text": "Visualization\nggplot2 integration\n\nGeocoding::plot_geocoding(data = \"night\", label = \"jilin\", year = \"2022\")\n\n\ninteractive map and 3D map (coming soon)"
+  },
+  {
+    "objectID": "project/packages/RconnectPy/index.html",
+    "href": "project/packages/RconnectPy/index.html",
+    "title": "RconnectPy",
+    "section": "",
+    "text": "An R package for easy installation and importing of python modules."
+  },
+  {
+    "objectID": "project/packages/RconnectPy/index.html#overview",
+    "href": "project/packages/RconnectPy/index.html#overview",
+    "title": "RconnectPy",
+    "section": "",
+    "text": "An R package for easy installation and importing of python modules."
+  },
+  {
+    "objectID": "project/packages/RconnectPy/index.html#installation",
+    "href": "project/packages/RconnectPy/index.html#installation",
+    "title": "RconnectPy",
+    "section": "Installation",
+    "text": "Installation\n\nremotes::install_github(\"xinzhuohkust/RconnectPy\")"
+  },
+  {
+    "objectID": "project/packages/RconnectPy/index.html#usage",
+    "href": "project/packages/RconnectPy/index.html#usage",
+    "title": "RconnectPy",
+    "section": "Usage",
+    "text": "Usage\n\nRconnectPy::where_py()\n\n\nRconnectPy::install_py_packages(python, \"pandas\")\n\n\npackages &lt;- RconnectPy::import_py_packages(\"pandas\", \"selenium\", \"asent\")"
+  },
+  {
+    "objectID": "project/packages/sentimentRPy/index.html",
+    "href": "project/packages/sentimentRPy/index.html",
+    "title": "sentimentRPy",
+    "section": "",
+    "text": "An R package for sentence-level and word-level sentiment analysis. Support vectorization, multithreading and is robust to errors."
+  },
+  {
+    "objectID": "project/packages/sentimentRPy/index.html#overview",
+    "href": "project/packages/sentimentRPy/index.html#overview",
+    "title": "sentimentRPy",
+    "section": "",
+    "text": "An R package for sentence-level and word-level sentiment analysis. Support vectorization, multithreading and is robust to errors."
+  },
+  {
+    "objectID": "project/packages/sentimentRPy/index.html#installation",
+    "href": "project/packages/sentimentRPy/index.html#installation",
+    "title": "sentimentRPy",
+    "section": "Installation",
+    "text": "Installation\n\nremotes::install_github(\"xinzhuohkust/sentimentRPy\")"
+  },
+  {
+    "objectID": "project/packages/sentimentRPy/index.html#usage",
+    "href": "project/packages/sentimentRPy/index.html#usage",
+    "title": "sentimentRPy",
+    "section": "Usage",
+    "text": "Usage\nR\nword level\n\nsentimentRPy::get_sentimentR(text = c(\"I am happy\", \"I am sad\"), method = \"word\")\n\n\n\n\nneu\npos\nneg\n\n\n\n0\n3\n0\n\n\n0\n0\n-2\n\n\n\n\n\n\nSentence level which will take the contrast and negation into account. sd will be provided when there are multiple sentences. The underlying function is from sentimentr.\n\nsentimentRPy::get_sentimentR(text = \"I am not happy, but I am also not unhappy.\",\n    method = \"sentence\")\n\n\n\n\nsentiment\nsd\n\n\n0.296463530640786\nNA\n\n\n\n\n\nMultithreading model using all available CPU cores.\n\nsentimentRPy::get_sentimentR(\n    text = a large corpus,\n    method = \"sentence\", # or word\n    multisession = TRUE\n    )\n\nPython\nPython setup\n\nasent &lt;- sentimentRPy::asent_setup(python = \"C:/Users/xhuangcb/anaconda3/envs/pytorch_gpu/python.exe\")\n\nSentence level sentiment analysis using asent in Python\n\nsentimentRPy::get_sentimentPy(\"I am not happy, but I am also not unhappy.\")\n\n\n\n\nneg\nneu\npos\ncompound\n\n\n0\n0.652\n0.348\n0.652"
+  },
+  {
+    "objectID": "project/index.html#research",
+    "href": "project/index.html#research",
+    "title": "Xinzhuo Huang",
+    "section": "",
+    "text": "Suparna Chaudhry and Andrew Heiss, “Dynamics of International Giving: How Heuristics Shape Individual Donor Preferences,” Nonprofit and Voluntary Sector Quarterly 50, no. 3 (June 2021): 481–505, doi: 10.1177/0899764020971045\n            \n            \n                    \n                            Philanthropy\n                        \n                    \n                            Experiment\n                        \n                    \n                            Bayes\n                        \n                    \n                            INGOs\n                        \n            \n            \n                In trouble abroad?\n                 / Crackdown may be heuristic—\n                 / those who give give more.\n            \n            \n                \n                    \n                        \n                             Full details »\n                        \n                    \n                    \n                        \n                             Preprint\n                        \n                    \n                    \n                        \n                             Final version\n                        \n                    \n                    \n                        \n                             Code\n                        \n                    \n                    \n                        \n                             Data\n                        \n                    \n                    \n                        \n                             Add to Zotero\n                        \n                    \n                \n            \n        \n\n\n\nNo matching items"
+  },
+  {
+    "objectID": "project/index.html#r-packages",
+    "href": "project/index.html#r-packages",
+    "title": "Research",
+    "section": "R packages",
+    "text": "R packages\n\n\n   \n     \n     \n       Order By\n       Default\n         \n          Date - Oldest\n        \n         \n          Date - Newest\n        \n     \n  \n\n\n\n\n\n\n\n\nTitle\n\n\nDate\n\n\nDescription\n\n\n\n\n\n\n\n\n\nGeocoding\n\n\nMay 26, 2023\n\n\nAn R package that provides geocoding, reverse geocoding, route planning, and advanced geographic visualization. Moreover, this package provides…\n\n\n\n\n\n\n\nRconnectPy\n\n\nJun 23, 2023\n\n\nAn R package for easy installation and importing of python modules.\n\n\n\n\n\n\n\nsentimentRPy\n\n\nJun 23, 2023\n\n\nAn R package for sentence-level and word-level sentiment analysis.\n\n\n\n\n\n\nNo matching items"
+  },
+  {
+    "objectID": "project/research/working_paper/index.html",
+    "href": "project/research/working_paper/index.html",
+    "title": "Are Donors Really Responding? Analyzing the Impact of Global Restrictions on NGOs",
+    "section": "",
+    "text": "Paper (preprint)\nSupplement (preprint)\nStatistical analysis notebook\nGitHub repository"
+  },
+  {
+    "objectID": "project/research/working_paper/index.html#important-links",
+    "href": "project/research/working_paper/index.html#important-links",
+    "title": "Dynamics of International Giving: How Heuristics Shape Individual Donor Preferences",
+    "section": "Important links",
+    "text": "Important links\n\nPaper (preprint)\nSupplement (preprint)\nStatistical analysis notebook\nGitHub repository\nExperiment preregistration"
+  },
+  {
+    "objectID": "project/research/working_paper/index.html#abstract",
+    "href": "project/research/working_paper/index.html#abstract",
+    "title": "Dynamics of International Giving: How Heuristics Shape Individual Donor Preferences",
+    "section": "Abstract",
+    "text": "Abstract\nState restrictions on non-governmental organizations (NGOs) have become increasingly pervasive across the globe. While this crackdown has been shown to have a negative impact on public funding flows, we know little about how it impacts private philanthropy. How does information about crackdown abroad, as well as organizational attributes of nonprofits affect individual donors’ willingness to donate internationally? Using a survey experiment, we find that learning about repressive NGO environments increases generosity in that already-likely donors are willing to donate substantially more to legally besieged nonprofits. This generosity persists when mediated by two organizational-level heuristics: NGO issue areas and main funding sources. We discuss the implications of our results on how nonprofits can use different framing appeals to increase fundraising at a time when traditional public donor funding to such organizations is decreasing."
+  },
+  {
+    "objectID": "project/research/working_paper/index.html#figure",
+    "href": "project/research/working_paper/index.html#figure",
+    "title": "Are Donors Really Responding? Analyzing the Impact of Global Restrictions on NGOs",
+    "section": "Figure",
+    "text": "Figure\nFigure 5: Predicted ODA (foreign aid) across a range of differences from average number of anti-NGO laws in an average country; dark line shows average of 500 draws from posterior distribution.\n\n\n\nFigure 5: Predicted ODA (foreign aid) across a range of differences from average number of anti-NGO laws in an average country; dark line shows average of 500 draws from posterior distribution."
+  },
+  {
+    "objectID": "project/research/working_paper/index.html#bibtex-citation",
+    "href": "project/research/working_paper/index.html#bibtex-citation",
+    "title": "Are Donors Really Responding? Analyzing the Impact of Global Restrictions on NGOs",
+    "section": "BibTeX citation",
+    "text": "BibTeX citation\n@unpublished{ChaudhryHeiss:2023,\n    Author = {Suparna Chaudhry and Andrew Heiss},\n    Note = {Working paper},\n    Title = {Are Donors Really Responding? Analyzing the Impact of Global Restrictions on {NGO}s},\n    Year = {2023}}"
+  },
+  {
+    "objectID": "project/research/working_paper/index.html#media-coverage",
+    "href": "project/research/working_paper/index.html#media-coverage",
+    "title": "Dynamics of International Giving: How Heuristics Shape Individual Donor Preferences",
+    "section": "Media coverage",
+    "text": "Media coverage\n\n“Donors grow more generous when they support nonprofits facing hostile environments abroad,” The Conversation, December 7, 2020"
+  },
+  {
+    "objectID": "project/research/working_paper/index.html#important-figures",
+    "href": "project/research/working_paper/index.html#important-figures",
+    "title": "Dynamics of International Giving: How Heuristics Shape Individual Donor Preferences",
+    "section": "Important figures",
+    "text": "Important figures\nFigures 2 & 3: Difference in likelihood of donation across crackdown and no crackdown groups, conditioned by other experimental frames + difference in amount donated across crackdown and no crackdown groups, conditioned by other experimental frames\n\n\n\nFigures 2 & 3: Difference in likelihood of donation across crackdown and no crackdown groups, conditioned by other experimental frames + difference in amount donated across crackdown and no crackdown groups, conditioned by other experimental frames"
+  },
+  {
+    "objectID": "project/research/working_paper/index.html#citation",
+    "href": "project/research/working_paper/index.html#citation",
+    "title": "Dynamics of International Giving: How Heuristics Shape Individual Donor Preferences",
+    "section": "Citation",
+    "text": "Citation\n\n Add to Zotero \n\n@article{ChaudhryHeiss:2021,\n    Author = {Suparna Chaudhry and Andrew Heiss},\n    Doi = {10.1177/0899764020971045},\n    Journal = {Nonprofit and Voluntary Sector Quarterly},\n    Month = {6},\n    Number = {3},\n    Pages = {481--505},\n    Title = {Dynamics of International Giving: How Heuristics Shape Individual Donor Preferences},\n    Volume = {50},\n    Year = {2021}}"
+  },
+  {
+    "objectID": "project/index.html#packages",
+    "href": "project/index.html#packages",
+    "title": "Xinzhuo Huang",
+    "section": "Packages",
+    "text": "Packages\n\n\n   \n     \n     \n       Order By\n       Default\n         \n          Date - Oldest\n        \n         \n          Date - Newest\n        \n     \n  \n\n\n\n\n\n\n\nName\n\n\nDescription\n\n\nDate\n\n\n\n\n\n\n\n\n\nGeocoding\n\n\nAn R package that provides geocoding, reverse geocoding, route planning, and advanced geographic visualization. Moreover, this package provides economic and social information such as nighttime lights and population based on geographic coding.\n\n\nMay 2023\n\n\n\n\n\n\n\nRconnectPy\n\n\nAn R package for easy installation and importing of python modules.\n\n\nJune 2023\n\n\n\n\n\n\n\nsentimentRPy\n\n\nAn R package for sentence-level and word-level sentiment analysis.\n\n\nJune 2023\n\n\n\n\n\nNo matching items"
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Xinzhuo Huang",
+    "section": "",
+    "text": "{=html}"
+  },
+  {
+    "objectID": "project/packages/Geocoding/index.html#what-is-nutshell",
+    "href": "project/packages/Geocoding/index.html#what-is-nutshell",
+    "title": "Geocoding",
+    "section": "",
+    "text": "Nutshell is a tool to make “expandable explanations”, like this! This lets your readers learn only the details they need, just-in-time, always-in-context.\nUnlike links, Nutshell lets you include only the snippet you need, not the whole page. Plus, instead of being lost in a jungle of new tabs, your reader stays on one page, keeping their flow of reading. Even if you interrupt a sentence, Nutshell recaps the sentence afterwards, so your reader never loses context.\nYou can find more information on the nutshell webpage"
+  },
+  {
+    "objectID": "project/packages/Geocoding/index.html#test",
+    "href": "project/packages/Geocoding/index.html#test",
+    "title": "Geocoding",
+    "section": "Test",
+    "text": "Test\nThis is a senseless paragraph"
+  },
+  {
+    "objectID": "project/packages/Geocoding/index.html#testing-links",
+    "href": "project/packages/Geocoding/index.html#testing-links",
+    "title": "Geocoding",
+    "section": "Testing Links",
+    "text": "Testing Links\n\n\n:link to senseless paragraph\n\n:link to wikipedia article\n:link to invisible sections"
+  },
+  {
+    "objectID": "project/packages/Geocoding/index.html#x-invisible",
+    "href": "project/packages/Geocoding/index.html#x-invisible",
+    "title": "Geocoding",
+    "section": ":x invisible",
+    "text": ":x invisible\nUse ## :x header to include an invisible secion that can be linked to via nutshell"
+  },
+  {
+    "objectID": "blog/ggplot2_cookbook/index.html",
+    "href": "blog/ggplot2_cookbook/index.html",
+    "title": "Visualization Cookbook",
+    "section": "",
+    "text": "Powered by Quarto | © 2023 Xinzhuo Huang\nCookie Preferences"
+  },
+  {
+    "objectID": "blog/ggplot2_cookbook/index.html#what-is-nutshell",
+    "href": "blog/ggplot2_cookbook/index.html#what-is-nutshell",
+    "title": "Visualization Cookbook",
+    "section": "",
+    "text": "Nutshell is a tool to make “expandable explanations”, like this! This lets your readers learn only the details they need, just-in-time, always-in-context.\nUnlike links, Nutshell lets you include only the snippet you need, not the whole page. Plus, instead of being lost in a jungle of new tabs, your reader stays on one page, keeping their flow of reading. Even if you interrupt a sentence, Nutshell recaps the sentence afterwards, so your reader never loses context.\nYou can find more information on the nutshell webpage"
+  },
+  {
+    "objectID": "blog/ggplot2_cookbook/index.html#color-palette",
+    "href": "blog/ggplot2_cookbook/index.html#color-palette",
+    "title": "Visualization Cookbook",
+    "section": "color palette",
+    "text": "color palette\n\nCodecolors &lt;- c(\"#2e4057\", \"#66a182\",\"#edae49\", \"#d1495b\", \"#00798c\")"
+  },
+  {
+    "objectID": "blog/ggplot2_cookbook/index.html#x-invisible",
+    "href": "blog/ggplot2_cookbook/index.html#x-invisible",
+    "title": "Visualization Cookbook",
+    "section": ":x invisible",
+    "text": ":x invisible"
+  },
+  {
+    "objectID": "blog/ggplot2_cookbook/index.html#active-theme",
+    "href": "blog/ggplot2_cookbook/index.html#active-theme",
+    "title": "Visualization Cookbook",
+    "section": "active theme",
+    "text": "active theme\n\nCodetheme_custom &lt;- theme_void(base_size = 10) +\n    theme(\n        aspect.ratio = 0.5,\n        plot.background = element_rect(fill = \"#fdfdfd\", color = NA),\n        plot.margin = margin(rep(0.5, 4), unit = \"cm\"),\n        axis.text = element_text(\n            family = \"Publico\",\n            color = \"#555665\",\n            size = 10,\n            margin = margin(t = 0.5, r = 0.5, unit = \"cm\")\n        ),\n        panel.grid.major = element_line(\n            linewidth = 0.2,\n            color = \"#555665\",\n            linetype = \"dashed\"\n        ),\n        axis.title = element_text(\n            family = \"Proxiama\",\n            size = 15,\n            margin = margin(t = 0.5, r = 0.5, unit = \"cm\")\n        ),\n        legend.text = element_text(\n            family = \"Publico\",\n            color = \"#555665\"\n        )\n    ) \n\n\n\nCodesimu_data &lt;- tibble(\n    `Pro China` = runif(100, min = -1, max = 1),\n    `Pro USA` = runif(100, min = -1, max = 1)\n) %&gt;%\n    pivot_longer(cols = 1:2, names_to = \"Group\")\n\n\n\nCodesimu_data %&gt;% \n    ggplot(aes(value, color = Group, fill = Group)) +\n    geom_density(size = 1.2, alpha = 0.1) +\n    scale_colour_manual(values = colors[c(1, 4)]) +\n    theme_custom +\n    guides(color = guide_legend(override.aes = list(shape = c(18))))"
+  },
+  {
+    "objectID": "blog/ggplot2_cookbook/index.html#package-management",
+    "href": "blog/ggplot2_cookbook/index.html#package-management",
+    "title": "Visualization Cookbook",
+    "section": "package management",
+    "text": "package management\n\nCoderequire(\"pacman\")\np_load(tidyverse, showtext, plotly, ggthemes, rmarkdown)"
+  },
+  {
+    "objectID": "blog/ggplot2_cookbook/index.html#fonts",
+    "href": "blog/ggplot2_cookbook/index.html#fonts",
+    "title": "Visualization Cookbook",
+    "section": "fonts",
+    "text": "fonts\n\nCodefont_add(\"Proxiama\", \"Proxima Nova Extrabold.ttf\")\nfont_add(\"Publico\", \"Publico Headline Web Bold.ttf\")\nfont_add_google(\"Heebo\", \"heebo\")\nfont_add_google(\"Share Tech Mono\", \"techmono\")\nshowtext_auto()"
+  },
+  {
+    "objectID": "data/penality/index.html#sample-data",
+    "href": "data/penality/index.html#sample-data",
+    "title": "Data on law enforcement by Chinese police",
+    "section": "Sample Data",
+    "text": "Sample Data"
+  },
+  {
+    "objectID": "data/penality/index.html#case-study-where-does-social-protest-occur",
+    "href": "data/penality/index.html#case-study-where-does-social-protest-occur",
+    "title": "Data on law enforcement by Chinese police",
+    "section": "Case Study: Where does social protest occur?",
+    "text": "Case Study: Where does social protest occur?\nUtilizing the geocoding R package developed by the author, we have obtained the geographic coordinates of where the protests take place."
+  },
+  {
+    "objectID": "data/penality/index.html#examples-of-data-application-where-does-social-protest-occur",
+    "href": "data/penality/index.html#examples-of-data-application-where-does-social-protest-occur",
+    "title": "Data on law enforcement by Chinese police",
+    "section": "Examples of Data Application: Where does social protest occur?",
+    "text": "Examples of Data Application: Where does social protest occur?\nUtilizing the geocoding R package developed by the author, we have obtained the geographic coordinates of where the protests take place."
+  },
+  {
+    "objectID": "cv/index.html#conference-paper",
+    "href": "cv/index.html#conference-paper",
+    "title": "Xinzhuo Huang",
+    "section": "Conference Paper",
+    "text": "Conference Paper\n\nPolarized Agenda-Setting by Global News Media: Salience and Valence of China News\n\n2023 Annual Meeting of the American Political Science Association (Los Angeles, USA).\nCo-author with Prof Jean Hong from University of Michigan and Prof Yusaku Horiuchi from Dartmouth College.\n\n\nHow Adaptive Propaganda Works: Evidence from China\n\n2023 Young Scholars Conference in UC San Diego (CA, USA).\nCo-author with Dr Hongshen Zhu from University of Pennsylvania and Prof Haibing Yan from ECUPL."
+  },
+  {
+    "objectID": "data/penality/index.html#examples-of-data-application-policing-at-protests",
+    "href": "data/penality/index.html#examples-of-data-application-policing-at-protests",
+    "title": "Data on law enforcement by Chinese police",
+    "section": "Examples of Data Application: Policing at Protests",
+    "text": "Examples of Data Application: Policing at Protests\nPolicing protest is a key topic in the study of social movements. Based on these 12 million policing documents, the author has identified about 100,000 instances of social protests happening in China.\nUtilizing the geocoding R package developed by the author, we have obtained the geographic coordinates of where the protests take place.\n\n\n\nWhere did social protests occur in Jilin Province, China?"
+  }
+]
